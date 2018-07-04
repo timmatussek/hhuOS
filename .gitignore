@@ -15,7 +15,7 @@ src/os/*.img
 src/os/*.dump
 
 # Project files and folders
-cmake-build-debug
+cmake-build-debug/
 .gdb_history
 .vscode/
 .cproject
@@ -31,9 +31,9 @@ src/os/dep/
 src/loader/boot/hhuOS.bin
 src/loader/boot/hhuOS.initrd
 
-# hhuOS hard drive image
-src/os/hdd.img
+# hhuOS hard drive images
+src/os/hdd*.img
 
-# hhuOS current commit
-src/os/gitversion.c
+# QEMU network interface dump
+src/os/eth0.dump
 

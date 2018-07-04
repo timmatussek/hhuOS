@@ -98,9 +98,12 @@ QEMU_DEFAULT_PARAMS = -boot d -cdrom $(OBJDIR)/hhuOS.iso -m 1G -k de -vga std -m
 					  -drive index=0,if=floppy \
 					  -readconfig usb.cfg \
 					  -drive format=raw,file=hdd0.img,if=none,id=disk0 \
+					  -netdev user,id=eth0 \
 					  -device ich9-ahci,id=ahci \
 					  -device ide-drive,drive=disk0,bus=ahci.0 \
 					  -rtc base=localtime,clock=host \
+					  -device rtl8139,netdev=eth0 \
+					  -object filter-dump,id=dump0,netdev=eth0,file=eth0.dump \
 					  -device sb16,irq=10,dma=1 \
 					  -soundhw pcspk
 
