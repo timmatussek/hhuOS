@@ -97,7 +97,7 @@ class Realtek8139 : InterruptHandler {
         uint8_t     LSBCRC7;
         uint32_t    reserved6;
         uint8_t     CONFIG5;
-    };
+    } __attribute__((packed));
 
 public:
 
@@ -114,6 +114,8 @@ public:
     void setup(const Pci::Device &dev);
 
     void trigger() override;
+
+    void plugin();
 
     static const uint16_t VENDOR_ID = 0x10EC;
 
@@ -137,11 +139,19 @@ private:
 
     void advanceBuffer();
 
+    bool isBufferEmpty();
+
+    void receive();
+
+    void readMac();
+
     uint8_t *transmitBuffers[4];
 
     uint8_t *physTransmitBuffers[4];
 
     uint8_t currentBuffer = 0;
+
+    uint8_t *mac;
 
     String macAddress;
 
@@ -149,7 +159,85 @@ private:
 
     Registers *registers;
 
+    IOport *ioRegisters;
+
     static const uint8_t BUFFER_COUNT = 4;
+
+    static const uint32_t RECEIVE_BUFFER_SIZE = 8192 + 16;
+
+    static const uint32_t TRANSMIT_BUFFER_SIZE = 1024 * 1024 * 2;
+
+    /**
+     * Buffer Empty
+     */
+    static const uint8_t CR_BUFE   = 1U << 0U;
+
+    /**
+     * Transmitter Enable
+     */
+    static const uint8_t CR_TE     = 1U << 2U;
+
+    /**
+     * Receiver Enable
+     */
+    static const uint8_t CR_RE     = 1U << 3U;
+
+    /**
+     * Reset
+     */
+    static const uint8_t CR_RST    = 1U << 4U;
+
+    /**
+     * Receive OK
+     */
+    static const uint16_t INT_ROK           = 1U << 0U;
+
+    /**
+     * Receive Error
+     */
+    static const uint16_t INT_RER           = 1U << 1U;
+
+    /**
+     * Transmit OK
+     */
+    static const uint16_t INT_TOK           = 1U << 2U;
+
+    /**
+     * Transmit Error
+     */
+    static const uint16_t INT_TER           = 1U << 3U;
+
+    /**
+     * Rx Buffer Overflow
+     */
+    static const uint16_t INT_RXOVW         = 1U << 4U;
+
+    /**
+     * Packet Underrun / Link Change
+     */
+    static const uint16_t INT_PUN           = 1U << 5U;
+
+    /**
+     * Rx FIFO Overflow
+     */
+    static const uint16_t INT_FOVW          = 1U << 6U;
+
+    /**
+     * Cable Length Change
+     */
+    static const uint16_t INT_LenChg        = 1U << 13U;
+
+    /**
+     * Timeout
+     */
+    static const uint16_t INT_TimeOut       = 1U << 14U;
+
+    /**
+     * System Error
+     */
+    static const uint16_t INT_SERR          = 1U << 15U;
+
+    static const uint32_t TCR_HWVERID_MASK = 0x7CC00000;
 };
 
 

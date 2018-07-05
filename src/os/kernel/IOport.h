@@ -61,12 +61,34 @@ public:
     }
 
     /**
+	 * Writes a word to IO-port.
+	 *
+	 * @param val 16-bit value to write.
+	 */
+    void outw (uint16_t addr_offset, uint16_t val) const {
+        uint16_t addr = address + addr_offset;
+        asm volatile ( "outw %0, %1" : : "a"(val), "Nd"(addr) );
+    }
+
+
+
+    /**
 	 * Writes a doubleword (32 bit) to IO-port.
 	 *
 	 * @param val 32-bit value to write.
 	 */
     void outdw (uint32_t val) const {
         asm volatile ( "outl %0, %1" : : "a"(val), "Nd"(address) );
+    }
+
+    /**
+	 * Writes a doubleword (32 bit) to IO-port.
+	 *
+	 * @param val 32-bit value to write.
+	 */
+    void outdw (uint16_t addr_offset, uint32_t val) const {
+        uint16_t addr = address + addr_offset;
+        asm volatile ( "outl %0, %1" : : "a"(val), "Nd"(addr) );
     }
 
     /**
@@ -111,6 +133,21 @@ public:
                         : "Nd"(address) );
         return ret;
     }
+
+    /**
+	 * Reads a word from IO-port.
+	 *
+	 * @return 16-bit value from IO-port
+	 */
+    uint16_t inw (uint16_t addr_offset) const {
+        uint16_t ret;
+        uint16_t addr = address + addr_offset;
+
+        asm volatile ( "inw %1, %0"
+        : "=a"(ret)
+        : "Nd"(addr) );
+        return ret;
+    }
     
     /**
 	 * Reads a a doubleword (32 bit) from IO-port.
@@ -123,6 +160,21 @@ public:
         asm volatile ( "inl %1, %0"
                       : "=a"(ret)
                       : "Nd"(address) );
+        return ret;
+    }
+
+    /**
+	 * Reads a a doubleword (32 bit) from IO-port.
+	 *
+	 * @return 32-bit value from IO-port
+	 */
+    uint32_t indw (uint16_t addr_offset) const {
+        uint32_t  ret;
+        uint16_t addr = address + addr_offset;
+
+        asm volatile ( "inl %1, %0"
+        : "=a"(ret)
+        : "Nd"(addr) );
         return ret;
     }
 

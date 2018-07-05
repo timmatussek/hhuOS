@@ -33,7 +33,8 @@ static void _puts(char* strout, const char* str, int & n) {
 
 static int _vprintf(char* strout, const char* format, int & n, va_list &args) {
     const char* traverse;
-    int i;
+    uint32_t uint;
+    int32_t sint;
     char *s;
     unsigned char padding = 0;
     
@@ -57,36 +58,40 @@ static int _vprintf(char* strout, const char* format, int & n, va_list &args) {
 
         switch (*traverse) {
             case 'c' :
-                i = va_arg(args, int);
-                _putc(strout, (char) i, n);
+                sint = va_arg(args, int);
+                _putc(strout, (char) sint, n);
                 break;
             case 'd' :
-                i = va_arg(args, int);
-                if (i < 0) {
-                    i = -i;
+                sint = va_arg(args, int32_t);
+                if (sint < 0) {
+                    uint = (uint32_t) -sint;
                     _putc(strout, '-', n);
+                } else {
+                    uint = (uint32_t) sint;
                 }
-                _puts(strout, StrFormat::convert(i, 10, padding), n);
+                _puts(strout, StrFormat::convert(uint, 10, padding), n);
                 break;
             case 'u' :
-                i = va_arg(args, uint32_t);
-                _puts(strout, StrFormat::convert(i, 10, padding), n);
+                uint = va_arg(args, uint32_t);
+                _puts(strout, StrFormat::convert(uint, 10, padding), n);
                 break;
             case 'o':
-                i = va_arg(args, unsigned int);
-                _puts(strout, StrFormat::convert(i, 8, padding), n);
+                uint = va_arg(args, uint32_t);
+                _puts(strout, StrFormat::convert(uint, 8, padding), n);
                 break;
             case 's':
-                s = va_arg(args, char *);
+                s = va_arg(args, char*);
                 _puts(strout, s, n);
                 break;
             case 'x':
-                i = va_arg(args, unsigned int);
-                _puts(strout, StrFormat::convert(i, 16, padding), n);
+                uint = va_arg(args, uint32_t);
+                _puts(strout, StrFormat::convert(uint, 16, padding), n);
                 break;
             case 'b':
-                i = va_arg(args, unsigned int);
-                _puts(strout, StrFormat::convert(i, 2, padding), n);
+                uint = va_arg(args, uint32_t);
+                _puts(strout, StrFormat::convert(uint, 2, padding), n);
+                break;
+            default:
                 break;
         }
     }

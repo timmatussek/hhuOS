@@ -224,6 +224,11 @@ uint8_t Pci::findCapability(uint8_t bus, uint8_t device, uint8_t function, uint8
     return cap;
 }
 
+uint8_t Pci::findCapability(const Pci::Device &device, uint8_t capId) {
+
+    return findCapability(device.bus, device.device, device.function, capId);
+}
+
 void Pci::checkFunction(uint8_t bus, uint8_t device, uint8_t function) {
     uint8_t secondaryBus;
 

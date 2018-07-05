@@ -129,6 +129,8 @@ public:
 
     static uint8_t   findCapability(uint8_t bus, uint8_t device, uint8_t function, uint8_t capId);
 
+    static uint8_t   findCapability(const Pci::Device &device, uint8_t capId);
+
     static void      scan();
 
     static void      printRegisters(const Device &device);
