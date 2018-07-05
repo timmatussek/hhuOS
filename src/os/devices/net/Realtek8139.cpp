@@ -1,6 +1,5 @@
 #include <kernel/memory/SystemManagement.h>
 #include <kernel/services/TimeService.h>
-#include <kernel/Kernel.h>
 #include <kernel/interrupts/IntDispatcher.h>
 #include <kernel/services/DebugService.h>
 #include "Realtek8139.h"
@@ -17,13 +16,13 @@ void Realtek8139::setup(const Pci::Device &dev) {
 
     uint32_t ioAddress = Pci::readDoubleWord(pciDevice.bus, pciDevice.device, pciDevice.function, Pci::PCI_HEADER_BAR0);
 
-    ioRegisters = new IOport(ioAddress & (~0xFFU));
+    ioRegisters = new IOport((uint16_t) (ioAddress & ~0xFFU));
 
     readMac();
 
     log.trace("MAC : %s", (char*) macAddress);
 
-    log.trace("Hardware Version is 0b%b", (ioRegisters->indw(0x40) & TCR_HWVERID_MASK));
+    log.trace("Hardware version is 0b%b", (ioRegisters->indw(0x40) & TCR_HWVERID_MASK));
 
     log.trace("Powering on device");
 
@@ -42,30 +41,6 @@ void Realtek8139::setup(const Pci::Device &dev) {
     enable();
 
     plugin();
-
-    while(true) {
-
-        log.trace("Sending data packet");
-
-        const unsigned char *message[80];
-
-        const unsigned char destination[6] { 0x90, 0x1b , 0x0e, 0x9a, 0xc6, 0x90};
-
-        const unsigned char content[] = "Hello from hhuOS!";
-
-        uint16_t type = 0x0806;
-
-        memcpy((void*) message, mac, 6);
-        memcpy((void*) (message + 6), destination, 6);
-        memcpy((void*) (message + 12), &type, 2);
-        memcpy((void*) (message + 14), content, strlen((char*) content));
-
-        send((uint8_t*) message, 80);
-
-        Kernel::getService<TimeService>()->msleep(1000);
-    }
-
-
 }
 
 void Realtek8139::readMac() {
@@ -117,7 +92,10 @@ void Realtek8139::configureReceiveBuffer() {
 
     log.trace("Configuring receive buffer");
 
-    ioRegisters->outdw(0x44, 0x00000000);
+    ioRegisters->outdw(0x44, 0x0000070A);
+
+    //TODO(krakowski)
+    // ~8KB of contiguous physical memory is required here
 }
 
 void Realtek8139::configureTransmitBuffer() {
@@ -130,9 +108,9 @@ void Realtek8139::configureTransmitBuffer() {
         //  Get contiguous pages
         info = SystemManagement::getInstance()->mapIO(TRANSMIT_BUFFER_SIZE);
 
-        transmitBuffers[i] = (uint8_t*) info.virtStartAddress;
+        txBuffers[i] = (uint8_t*) info.virtStartAddress;
 
-        physTransmitBuffers[i] = (uint8_t*) info.physAddresses[0];
+        physTxBuffers[i] = (uint8_t*) info.physAddresses[0];
     }
 }
 
@@ -145,18 +123,18 @@ void Realtek8139::enable() {
 
 void Realtek8139::advanceBuffer() {
 
-    currentBuffer++;
+    currentTxBuffer++;
 
-    currentBuffer %= 4;
+    currentTxBuffer %= 4;
 }
 
 void Realtek8139::send(uint8_t *data, uint32_t length) {
 
-    memcpy(transmitBuffers[currentBuffer], data, length);
+    memcpy(txBuffers[currentTxBuffer], data, length);
 
-    ioRegisters->outdw(0x20 + (currentBuffer * 4), (uint32_t) physTransmitBuffers[currentBuffer]);
+    ioRegisters->outdw((uint16_t) (0x20 + (currentTxBuffer * 4)), (uint32_t) physTxBuffers[currentTxBuffer]);
 
-    ioRegisters->outdw(0x10 + (currentBuffer * 4), length);
+    ioRegisters->outdw((uint16_t) (0x10 + (currentTxBuffer * 4)), length);
 
     advanceBuffer();
 }
@@ -178,18 +156,31 @@ void Realtek8139::plugin() {
     IntDispatcher::getInstance().assign((uint8_t) pciDevice.intr + (uint8_t) 32, *this);
 
     Pic::getInstance()->allow(pciDevice.intr);
-
 }
 
 bool Realtek8139::isBufferEmpty() {
 
-    return registers->CR & CR_BUFE == CR_BUFE;
+    return (ioRegisters->inb(0x37) & CR_BUFE) == CR_BUFE;
 }
 
 void Realtek8139::receive() {
 
+    while (!isBufferEmpty()) {
+
+        uint32_t length = rxBuffer[rxBufferOffset + 3] << 8U | rxBuffer[rxBufferOffset + 2];
+
+        rxBufferOffset += length + 4;
+
+        if (rxBufferOffset % 4 != 0) {
+
+            rxBufferOffset = (uint16_t) ((rxBufferOffset + (4 - 1)) & -4);
+        }
+
+        rxBufferOffset %= RECEIVE_BUFFER_SIZE;
+
+        // TODO(krakowski)
+        //  Read Rx buffer and send event using EventBus
+
+        ioRegisters->outw(0x38, rxBufferOffset - (uint16_t) 16U);
+    }
 }
-
-
-
-

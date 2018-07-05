@@ -145,12 +145,6 @@ private:
 
     void readMac();
 
-    uint8_t *transmitBuffers[4];
-
-    uint8_t *physTransmitBuffers[4];
-
-    uint8_t currentBuffer = 0;
-
     uint8_t *mac;
 
     String macAddress;
@@ -161,9 +155,19 @@ private:
 
     IOport *ioRegisters;
 
+    uint8_t currentTxBuffer = 0;
+
+    uint8_t *txBuffers[4];
+
+    uint8_t *physTxBuffers[4];
+
+    uint8_t *rxBuffer;
+
+    uint16_t rxBufferOffset = 0;
+
     static const uint8_t BUFFER_COUNT = 4;
 
-    static const uint32_t RECEIVE_BUFFER_SIZE = 8192 + 16;
+    static const uint16_t RECEIVE_BUFFER_SIZE = 8192 + 16;
 
     static const uint32_t TRANSMIT_BUFFER_SIZE = 1024 * 1024 * 2;
 
