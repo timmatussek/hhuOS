@@ -198,6 +198,8 @@ public:
 
     static const uint8_t    CLASS_SERIAL_BUS_DEVICE      = 0x0C;
 
+    static const uint8_t    CLASS_NETWORK_CONTROLLER     = 0x02;
+
     /* Subclass Codes */
     static const uint8_t    SUBCLASS_PCI_TO_PCI          = 0x04;
 
@@ -206,6 +208,8 @@ public:
     static const uint8_t    SUBCLASS_SERIAL_ATA          = 0x06;
 
     static const uint8_t    SUBCLASS_USB                 = 0x03;
+
+    static const uint8_t    SUBCLASS_ETHERNET_CONTROLLER = 0x00;
 
     /* Programming Interface Codes */
     static const uint8_t    PROGIF_UHCI                  = 0x00;

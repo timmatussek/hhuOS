@@ -4,8 +4,9 @@
 
 #include <kernel/interrupts/InterruptHandler.h>
 #include <devices/Pci.h>
+#include <devices/PciDeviceDriver.h>
 
-class Realtek8139 : InterruptHandler {
+class Realtek8139 : InterruptHandler, public PciDeviceDriver {
 
     struct Registers {
         uint8_t     IDR0;
@@ -107,11 +108,34 @@ public:
 
     Realtek8139 &operator=(const Realtek8139 &other) = delete;
 
-    virtual ~Realtek8139() = default;
+    ~Realtek8139() override = default;
+
+    PCI_DEVICE_DRIVER_IMPLEMENT_CREATE_INSTANCE(Realtek8139);
+
+    Util::Array<Util::Pair<uint16_t, uint16_t>> getIdPairs() const override {
+        Util::Pair<uint16_t, uint16_t> pair(VENDOR_ID, DEVICE_ID);
+        Util::Array<Util::Pair<uint16_t, uint16_t>> ret(1);
+
+        ret[0] = pair;
+
+        return ret;
+    }
+
+    uint8_t getBaseClass() const override {
+        return Pci::CLASS_NETWORK_CONTROLLER;
+    }
+
+    uint8_t getSubClass() const override {
+        return Pci::SUBCLASS_ETHERNET_CONTROLLER;
+    }
+
+    PciDeviceDriver::SetupMethod getSetupMethod() const override {
+        return PciDeviceDriver::BY_ID;
+    }
+
+    void setup(const Pci::Device &dev) override;
 
     void send(uint8_t *data, uint32_t length);
-
-    void setup(const Pci::Device &dev);
 
     void trigger() override;
 

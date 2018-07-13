@@ -42,6 +42,7 @@
 #include <kernel/services/ScreenshotService.h>
 #include <lib/file/wav/Wav.h>
 #include <devices/sound/SoundBlaster/SoundBlaster.h>
+#include <devices/net/Realtek8139.h>
 #include "GatesOfHell.h"
 #include "BuildConfig.h"
 
@@ -260,7 +261,10 @@ void GatesOfHell::initializeSerialPorts() {
 
 void GatesOfHell::initializePciDrivers() {
     Ahci ahci;
+    Realtek8139 rtl8139;
+
     Pci::setupDeviceDriver(ahci);
+    Pci::setupDeviceDriver(rtl8139);
 }
 
 bool GatesOfHell::loadModule(const String &path) {

@@ -76,9 +76,9 @@ void Realtek8139::initReceiveBuffer() {
 
     log.trace("Initializing receive buffer");
 
-    IOMemInfo info = SystemManagement::getInstance()->mapIO(4096);
+    void *address = SystemManagement::getInstance()->mapIO(4096);
 
-    ioRegisters->outdw(0x30, info.physAddresses[0]);
+    ioRegisters->outdw(0x30, (uint32_t) SystemManagement::getInstance()->getPhysicalAddress(address));
 }
 
 void Realtek8139::enableInterrupts() {
@@ -100,17 +100,15 @@ void Realtek8139::configureReceiveBuffer() {
 
 void Realtek8139::configureTransmitBuffer() {
 
-    IOMemInfo info{};
-
     for (uint8_t i = 0; i < BUFFER_COUNT; i++) {
 
         // TODO(krakowski)
         //  Get contiguous pages
-        info = SystemManagement::getInstance()->mapIO(TRANSMIT_BUFFER_SIZE);
+        void *address = SystemManagement::getInstance()->mapIO(TRANSMIT_BUFFER_SIZE);
 
-        txBuffers[i] = (uint8_t*) info.virtStartAddress;
+        txBuffers[i] = (uint8_t*) address;
 
-        physTxBuffers[i] = (uint8_t*) info.physAddresses[0];
+        physTxBuffers[i] = (uint8_t*) SystemManagement::getInstance()->getPhysicalAddress(address);
     }
 }
 
@@ -151,7 +149,7 @@ void Realtek8139::trigger() {
 
 void Realtek8139::plugin() {
 
-    log.trace("Assigning interrupt %d", pciDevice.intr);
+    log.trace("Assigning interrupt %u", pciDevice.intr);
 
     IntDispatcher::getInstance().assign((uint8_t) pciDevice.intr + (uint8_t) 32, *this);
 
