@@ -23,7 +23,7 @@
 
 #include <cstdint>
 #include <kernel/services/DebugService.h>
-#include <devices/block/storage/StorageDevice.h>
+#include <devices/storage/devices/StorageDevice.h>
 #include <lib/libc/printf.h>
 #include <devices/pci/PciDeviceDriver.h>
 #include "kernel/log/Logger.h"

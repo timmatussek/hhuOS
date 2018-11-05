@@ -20,7 +20,7 @@
 #include "StorageDevice.h"
 
 #include <cstdint>
-#include <devices/block/FloppyController.h>
+#include <devices/storage/controller/FloppyController.h>
 
 class FloppyMotorControlThread;
 

@@ -33,9 +33,9 @@
 #include <kernel/services/SerialService.h>
 #include <kernel/services/ParallelService.h>
 #include <devices/graphics/lfb/CgaGraphics.h>
-#include <devices/block/Ahci.h>
+#include <devices/storage/controller/Ahci.h>
 #include <devices/usb/Uhci.h>
-#include <devices/block/FloppyController.h>
+#include <devices/storage/controller/FloppyController.h>
 #include <filesystem/TarArchive/TarArchiveNode.h>
 #include <filesystem/TarArchive/TarArchiveDriver.h>
 #include <lib/file/Directory.h>

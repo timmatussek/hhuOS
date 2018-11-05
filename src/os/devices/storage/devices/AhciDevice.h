@@ -21,10 +21,10 @@
 #include "lib/String.h"
 
 #include <cstdint>
-#include <devices/block/Ahci.h>
+#include <devices/storage/controller/Ahci.h>
 
 /**
- * Implementation of StorageDevice for a Device, that is controlled by an AhciController (see devices/block/Ahci.h).
+ * Implementation of StorageDevice for a Device, that is controlled by an AhciController (see devices/storage/controller/Ahci.h).
  */
 class AhciDevice : public StorageDevice {
 
