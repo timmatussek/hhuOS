@@ -20,7 +20,7 @@
 #include <lib/libc/sprintf.h>
 #include <lib/file/tar/Archive.h>
 #include <lib/multiboot/Structure.h>
-#include "devices/Pci.h"
+#include "Pci.h"
 
 #include "kernel/memory/manager/IOMemoryManager.h"
 #include "PciDeviceDriver.h"

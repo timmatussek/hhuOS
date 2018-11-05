@@ -21,11 +21,11 @@
 #include <lib/libc/printf.h>
 #include <kernel/services/TimeService.h>
 #include <kernel/services/InputService.h>
-#include <devices/Pci.h>
+#include <devices/pci/Pci.h>
 #include <filesystem/FileSystem.h>
 #include <apps/Application.h>
 #include <kernel/threads/Scheduler.h>
-#include <devices/Pit.h>
+#include <devices/timer/Pit.h>
 #include <kernel/services/DebugService.h>
 #include <kernel/services/ModuleLoader.h>
 #include <kernel/services/StdStreamService.h>
