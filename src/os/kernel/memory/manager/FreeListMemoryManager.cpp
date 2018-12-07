@@ -382,7 +382,7 @@ void *FreeListMemoryManager::realloc(void *ptr, uint32_t size, uint32_t alignmen
                         auto *newHeader = (FLHeader*) ((uint32_t) ptr + size);
                         newHeader->size = oldHeader->size - size - HEADER_SIZE;
 
-                        freeAlgorithm(newHeader + HEADER_SIZE);
+                        freeAlgorithm((uint8_t*) newHeader + HEADER_SIZE);
 
                         oldHeader->size = size;
                     }
@@ -394,9 +394,9 @@ void *FreeListMemoryManager::realloc(void *ptr, uint32_t size, uint32_t alignmen
                     ret = allocAlgorithm(size, alignment, returnChunk);
                 }
             } else {
-                lock.release();
+                ret = allocAlgorithm(size, alignment, returnChunk);
 
-                return nullptr;
+                lock.release();
             }
 
             lock.release();
@@ -405,9 +405,11 @@ void *FreeListMemoryManager::realloc(void *ptr, uint32_t size, uint32_t alignmen
         }
     }
 
-    memcpy(ret, ptr, (size < oldHeader->size) ? size : oldHeader->size);
+    if(ret != nullptr) {
+        memcpy(ret, ptr, (size < oldHeader->size) ? size : oldHeader->size);
 
-    free(ptr);
+        free(ptr);
+    }
 
     return ret;
 }
