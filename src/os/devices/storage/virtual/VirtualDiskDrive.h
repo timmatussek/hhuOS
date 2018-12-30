@@ -14,45 +14,49 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
-#ifndef __AhciDevice_include__
-#define __AhciDevice_include__
+#ifndef __VirtualDiskDrive_include__
+#define __VirtualDiskDrive_include__
 
-#include "StorageDevice.h"
+#include "devices/storage/StorageDevice.h"
 #include "lib/String.h"
 
 #include <cstdint>
-#include <devices/storage/controller/Ahci.h>
 
 /**
- * Implementation of StorageDevice for a Device, that is controlled by an AhciController (see devices/storage/controller/Ahci.h).
+ * Implementation of StorageDevice for a virtual device, that exists only in RAM.
+ *
+ * @author Fabian Ruhland
+ * @date 2018
  */
-class AhciDevice : public StorageDevice {
+class VirtualDiskDrive : public StorageDevice {
 
 private:
-    Ahci &controller;
-    uint8_t ahciDiskNumber;
+    static uint32_t nameCounter;
 
-    Ahci::AhciDeviceInfo deviceInfo;
+    uint32_t sectorSize;
+    uint32_t sectorCount;
+
+    uint8_t *buffer = nullptr;
 
 public:
     /**
      * Constructor.
      *
-     * @param controller A reference to the controller, that controls this device.
-     * @param ahciDiskNumber The slot, that the device takes in the controller's device-array.
+     * @param sectorSize The virtual size of a sector on the virtual disk
+     * @param sectorCount The amount of sectors, that the virtual disk shall consist of
      * @param name The name
      */
-    AhciDevice(Ahci &controller, uint8_t ahciDiskNumber, String name);
+    VirtualDiskDrive(uint32_t sectorSize, uint32_t sectorCount);
 
     /**
      * Copy-constructor.
      */
-    AhciDevice(AhciDevice &copy) = delete;
+    VirtualDiskDrive(VirtualDiskDrive &copy) = delete;
 
     /**
      * Destructor.
      */
-    ~AhciDevice() override = default;
+    ~VirtualDiskDrive() override;
 
     /**
      * Overriding function from StorageDevice.

@@ -46,7 +46,7 @@
 #ifndef __FatFs_include__
 #define __FatFs_include__
 
-#include "devices/storage/devices/StorageDevice.h"
+#include "devices/storage/StorageDevice.h"
 
 extern "C" {
 #include "lib/libc/stdlib.h"

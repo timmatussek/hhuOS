@@ -18,7 +18,7 @@
 #define __StorageAddEvent_include__
 
 #include "kernel/events/Event.h"
-#include "devices/storage/devices/StorageDevice.h"
+#include "devices/storage/StorageDevice.h"
 
 class StorageAddEvent : public Event {
 

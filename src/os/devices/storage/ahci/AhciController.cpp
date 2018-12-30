@@ -16,20 +16,20 @@
 
 #include <kernel/Kernel.h>
 #include <kernel/log/Logger.h>
-#include <devices/storage/devices/AhciDevice.h>
+#include <devices/storage/ahci/AhciDevice.h>
 #include <devices/timer/Pit.h>
 #include <kernel/memory/Paging.h>
-#include"devices/storage/controller/Ahci.h"
+#include"AhciController.h"
 #include"kernel/memory/SystemManagement.h"
 
-Logger &Ahci::log = Logger::get("AHCI");
-uint32_t Ahci::deviceCount = 0;
+Logger &AhciController::log = Logger::get("AHCI");
+uint32_t AhciController::deviceCount = 0;
 
-Ahci::Ahci() : time(Pit::getInstance()) {
+AhciController::AhciController() : time(Pit::getInstance()) {
     timeService = Kernel::getService<TimeService>();
 }
 
-void Ahci::setup(const Pci::Device &dev) {
+void AhciController::setup(const Pci::Device &dev) {
 
     pciDevice = dev;
     Pci::enableBusMaster(pciDevice.bus, pciDevice.device, pciDevice.function);
@@ -99,7 +99,7 @@ void Ahci::setup(const Pci::Device &dev) {
 
     for (uint8_t i = 0; i < numDevices; i++) {
 
-        StorageDevice *storageDevice = new AhciDevice(*this, i,"hdd" + String::valueOf(deviceCount, 10));
+        StorageDevice *storageDevice = new AhciDevice(*this, i,"ahci" + String::valueOf(deviceCount, 10));
 
         uint8_t buf[512];
 
@@ -117,7 +117,7 @@ void Ahci::setup(const Pci::Device &dev) {
     }
 }
 
-void Ahci::readConfig() {
+void AhciController::readConfig() {
     numPorts    = static_cast<uint8_t>((abar->cap & ((1u << 5u) - 1)) + 1);
     numCmdSlots = static_cast<uint16_t>(((abar->cap >> 8u) & ((1u << 5u) - 1)) + 1);
     pi          = abar->pi;
@@ -128,7 +128,7 @@ void Ahci::readConfig() {
     log.info("HBA Capabilities = 0x%08x", abar->cap);
 }
 
-bool Ahci::reset() {
+bool AhciController::reset() {
     log.trace("Resetting Host-Bus-Adapter");
 
     abar->ghc |= HBA_GHC_HR;
@@ -166,14 +166,14 @@ bool Ahci::reset() {
     // }
 }
 
-void Ahci::enableAhci() {
+void AhciController::enableAhci() {
     if ( !(abar->cap & HBA_CAP_SAM) ) {
         log.trace("Setting HBA to AHCI mode");
         abar->ghc |= HBA_GHC_AE;
     }
 }
 
-void Ahci::scan() {
+void AhciController::scan() {
 
     for (uint8_t i = 0; i < numPorts; i++) {
         if ( !isPortImplemented(i) ) {
@@ -213,18 +213,18 @@ void Ahci::scan() {
     log.trace("Finished scanning all implemented ports");
 }
 
-bool Ahci::isActive(HbaPort* port) {
+bool AhciController::isActive(HbaPort* port) {
     return (port->cmd & (HBA_PxCMD_ST | HBA_PxCMD_CR | HBA_PxCMD_FRE | HBA_PxCMD_FR)) ==
         (HBA_PxCMD_ST | HBA_PxCMD_CR | HBA_PxCMD_FRE | HBA_PxCMD_FR);
 }
 
-bool Ahci::isPortImplemented(uint16_t portNumber) {
+bool AhciController::isPortImplemented(uint16_t portNumber) {
     uint16_t port = static_cast<uint16_t>(1) << portNumber;
 
     return (pi & port) == port;
 }
 
-void Ahci::resetPort(HbaPort *port) {
+void AhciController::resetPort(HbaPort *port) {
 
     log.trace("Resetting port...");
 
@@ -276,7 +276,7 @@ void Ahci::resetPort(HbaPort *port) {
     port->is    = port->is;   // @suppress("Assignment to itself")
 }
 
-void Ahci::resetAll() {
+void AhciController::resetAll() {
     for (uint8_t i = 0; i < numPorts; i++) {
         if ( isPortImplemented(i) ) {
             resetPort(&abar->ports[i]);
@@ -284,7 +284,7 @@ void Ahci::resetAll() {
     }
 }
 
-void Ahci::rebaseAll() {
+void AhciController::rebaseAll() {
     for (uint8_t i = 0; i < numPorts; i++) {
         if ( isPortImplemented(i) ) {
             rebasePort(&abar->ports[i], i);
@@ -292,7 +292,7 @@ void Ahci::rebaseAll() {
     }
 }
 
-uint8_t Ahci::checkType(HbaPort *port) {
+uint8_t AhciController::checkType(HbaPort *port) {
 
     switch (port->sig) {
         case SATA_SIG_ATAPI:
@@ -309,11 +309,11 @@ uint8_t Ahci::checkType(HbaPort *port) {
 }
 
 
-uint8_t Ahci::getNumDevices() {
+uint8_t AhciController::getNumDevices() {
     return numDevices;
 }
 
-void Ahci::biosHandoff() {
+void AhciController::biosHandoff() {
 
     if ( !(abar->cap2 & HBA_CAP2_BOH) ) {
         log.info("AHCI BIOS Handoff is not supported");
@@ -338,7 +338,7 @@ void Ahci::biosHandoff() {
     }
 }
 
-bool Ahci::read(uint8_t device, uint32_t startl, uint32_t starth,
+bool AhciController::read(uint8_t device, uint32_t startl, uint32_t starth,
                 uint16_t count, uint16_t *buf) {
 
     if (device + 1 > numDevices) {
@@ -349,7 +349,7 @@ bool Ahci::read(uint8_t device, uint32_t startl, uint32_t starth,
 }
 
 
-bool Ahci::write(uint8_t device, uint32_t startl, uint32_t starth, uint16_t count, uint16_t *buf) {
+bool AhciController::write(uint8_t device, uint32_t startl, uint32_t starth, uint16_t count, uint16_t *buf) {
 
     if (device + 1 > numDevices) {
         return false;
@@ -358,7 +358,7 @@ bool Ahci::write(uint8_t device, uint32_t startl, uint32_t starth, uint16_t coun
     return ahci_rw(sataDevices[device], startl, starth, count, buf, ATA_CMD_WRITE_DMA_EX, device);
 }
 
-Ahci::AhciDeviceInfo Ahci::getDeviceInfo(uint16_t deviceNumber) {
+AhciController::AhciDeviceInfo AhciController::getDeviceInfo(uint16_t deviceNumber) {
 
     AhciDeviceInfo ret{0};
 
@@ -457,7 +457,7 @@ Ahci::AhciDeviceInfo Ahci::getDeviceInfo(uint16_t deviceNumber) {
     return ret;
 }
 
-bool Ahci::ahci_rw(HbaPort *port, uint32_t startl, uint32_t starth, uint16_t count, uint16_t *buf, uint8_t command,
+bool AhciController::ahci_rw(HbaPort *port, uint32_t startl, uint32_t starth, uint16_t count, uint16_t *buf, uint8_t command,
                    uint8_t portIndex) {
 
     if (count == 0) {
@@ -579,7 +579,7 @@ bool Ahci::ahci_rw(HbaPort *port, uint32_t startl, uint32_t starth, uint16_t cou
     return true;
 }
 
-int Ahci::findCmdSlot(HbaPort *port) {
+int AhciController::findCmdSlot(HbaPort *port) {
     uint32_t slots = (port->sact | port->ci);
 
     for (uint16_t i = 0; i < numCmdSlots; i++)	{
@@ -591,7 +591,7 @@ int Ahci::findCmdSlot(HbaPort *port) {
     return -1;
 }
 
-void Ahci::rebasePort(HbaPort *port, int portno) {
+void AhciController::rebasePort(HbaPort *port, int portno) {
 
     log.trace("Rebasing port %d", portno);
 
@@ -641,7 +641,7 @@ void Ahci::rebasePort(HbaPort *port, int portno) {
     port->is = port->is;     // @suppress("Assignment to itself")
 }
 
-void Ahci::startAll() {
+void AhciController::startAll() {
     for (uint8_t i = 0; i <= numPorts; i++) {
         if ( isPortImplemented(i) ) {
             log.trace("Starting port %d", i);
@@ -650,7 +650,7 @@ void Ahci::startAll() {
     }
 }
 
-void Ahci::startCommand(HbaPort *port) {
+void AhciController::startCommand(HbaPort *port) {
     uint32_t timeout = 0;
     while (port->cmd & (HBA_PxCMD_CR | HBA_PxCMD_FR) && timeout < AHCI_TIMEOUT) {
         timeService->msleep(10);
@@ -664,7 +664,7 @@ void Ahci::startCommand(HbaPort *port) {
     }
 }
 
-void Ahci::stopAll() {
+void AhciController::stopAll() {
     for (uint8_t i = 0; i < numPorts; i++) {
         if ( isPortImplemented(i) ) {
             log.trace("Stopping port %d", i);
@@ -674,7 +674,7 @@ void Ahci::stopAll() {
 }
 
 
-void Ahci::stopCommand(HbaPort *port) {
+void AhciController::stopCommand(HbaPort *port) {
 	port->cmd &= ~(HBA_PxCMD_ST | HBA_PxCMD_FRE);
 
     uint32_t timeout = 0;
@@ -688,11 +688,11 @@ void Ahci::stopCommand(HbaPort *port) {
     }
 }
 
-void Ahci::plugin() {
+void AhciController::plugin() {
 
 }
 
-void Ahci::trigger(InterruptFrame &frame) {
+void AhciController::trigger(InterruptFrame &frame) {
     // TODO(krakowski):
     //  Wake up waiting threads once i/o-manager is implemented
 }

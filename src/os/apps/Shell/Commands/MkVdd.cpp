@@ -17,8 +17,8 @@
 #include <lib/libc/printf.h>
 #include <lib/file/FileStatus.h>
 #include <lib/file/File.h>
-#include <devices/storage/devices/Partition.h>
-#include <devices/storage/devices/VirtualDiskDrive.h>
+#include <devices/storage/Partition.h>
+#include <devices/storage/virtual/VirtualDiskDrive.h>
 #include "MkVdd.h"
 
 MkVdd::MkVdd(Shell &shell) : Command(shell) {

@@ -1,11 +1,11 @@
 #include <kernel/Kernel.h>
 #include <cstdint>
 #include <kernel/memory/SystemManagement.h>
-#include "Uhci.h"
+#include "UhciController.h"
 
-Logger &Uhci::log = Logger::get("UHCI");
+Logger &UhciController::log = Logger::get("UHCI");
 
-Uhci::~Uhci() {
+UhciController::~UhciController() {
     delete usbCommandPort;
     delete usbStatusPort;
     delete usbInterruptEnablePort;
@@ -18,7 +18,7 @@ Uhci::~Uhci() {
     SystemManagement::getInstance().freeIO(frameList);
 }
 
-void Uhci::setup(const Pci::Device &device) {
+void UhciController::setup(const Pci::Device &device) {
     log.trace("Initializing UHCI controller");
 
     uint32_t baseAddress = Pci::readDoubleWord(device.bus, device.device, device.function, Pci::PCI_HEADER_BAR4) & 0x0000ffe0;
@@ -89,7 +89,7 @@ void Uhci::setup(const Pci::Device &device) {
     log.trace("Finished initializing UHCI controller");
 }
 
-void Uhci::resetHostController() {
+void UhciController::resetHostController() {
     log.trace("Resetting Host Controller");
 
     // Send reset command
@@ -101,7 +101,7 @@ void Uhci::resetHostController() {
     log.trace("Successfully reset Host Controller");
 }
 
-void Uhci::startHostController() {
+void UhciController::startHostController() {
     log.trace("Starting Host Controller");
 
     // Send start command
@@ -110,7 +110,7 @@ void Uhci::startHostController() {
     log.trace("Successfully started Host Controller");
 }
 
-void Uhci::stopHostController() {
+void UhciController::stopHostController() {
     log.trace("Stopping Host Controller");
 
     // Send stop command
@@ -122,15 +122,15 @@ void Uhci::stopHostController() {
     log.trace("Successfully stopped Host Controller");
 }
 
-void Uhci::disableInterrupts() {
+void UhciController::disableInterrupts() {
     usbInterruptEnablePort->outw(0x00);
 }
 
-void Uhci::enableInterrupt(Uhci::UsbInterrupt interrupt) {
+void UhciController::enableInterrupt(UhciController::UsbInterrupt interrupt) {
     usbInterruptEnablePort->outw(usbInterruptEnablePort->inw() | interrupt);
 }
 
-void Uhci::resetPort(uint8_t portNum) {
+void UhciController::resetPort(uint8_t portNum) {
     if(portNum != 1 && portNum != 2) {
         log.warn("Trying to reset an undefined port (%u)! Aborting...", portNum);
 
@@ -154,6 +154,6 @@ void Uhci::resetPort(uint8_t portNum) {
     log.trace("Successfully reset port %u", portNum);
 }
 
-void Uhci::trigger(InterruptFrame &frame) {
+void UhciController::trigger(InterruptFrame &frame) {
     log.debug("INTERRUPT");
 }

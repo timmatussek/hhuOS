@@ -20,7 +20,7 @@
 #include "FsNode.h"
 #include <lib/util/HashMap.h>
 #include <lib/Prototype.h>
-#include "devices/storage/devices/StorageDevice.h"
+#include "devices/storage/StorageDevice.h"
 
 /**
  * An interface between the FileSystem-class and a filesystem-driver.

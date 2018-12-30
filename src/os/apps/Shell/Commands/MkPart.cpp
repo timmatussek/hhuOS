@@ -17,7 +17,7 @@
 #include <lib/libc/printf.h>
 #include <lib/file/FileStatus.h>
 #include <lib/file/File.h>
-#include <devices/storage/devices/Partition.h>
+#include <devices/storage/Partition.h>
 #include "MkPart.h"
 
 MkPart::MkPart(Shell &shell) : Command(shell) {

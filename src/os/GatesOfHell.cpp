@@ -31,8 +31,8 @@
 #include <kernel/services/KernelStreamService.h>
 #include <kernel/services/SoundService.h>
 #include <kernel/services/PortService.h>
-#include <devices/storage/controller/Ahci.h>
-#include <devices/usb/Uhci.h>
+#include <devices/storage/ahci/AhciController.h>
+#include <devices/usb/UhciController.h>
 #include <filesystem/TarArchive/TarArchiveNode.h>
 #include <filesystem/TarArchive/TarArchiveDriver.h>
 #include <lib/file/Directory.h>
@@ -46,6 +46,7 @@
 #include <kernel/memory/SystemManagement.h>
 #include <kernel/log/PortAppender.h>
 #include <kernel/Bios.h>
+#include <devices/storage/ata/AtaController.h>
 #include "GatesOfHell.h"
 #include "BuildConfig.h"
 
@@ -198,8 +199,10 @@ void GatesOfHell::afterPciScanModHook() {
         loadModule("/mod/" + module);
     }
 
-    Ahci ahci;
-    Uhci uhci;
+    AtaController::setup();
+
+    AhciController ahci;
+    UhciController uhci;
 
     Pci::setupDeviceDriver(ahci);
     Pci::setupDeviceDriver(uhci);

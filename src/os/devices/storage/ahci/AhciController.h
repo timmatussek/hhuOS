@@ -22,7 +22,7 @@
 
 #include <cstdint>
 #include <kernel/services/DebugService.h>
-#include <devices/storage/devices/StorageDevice.h>
+#include <devices/storage/StorageDevice.h>
 #include <lib/libc/printf.h>
 #include <devices/pci/PciDeviceDriver.h>
 #include "kernel/log/Logger.h"
@@ -34,7 +34,7 @@
  *
  * @author Filip Krakowski
  */
-class Ahci : public InterruptHandler, public PciDeviceDriver {
+class AhciController : public InterruptHandler, public PciDeviceDriver {
 
 private:
 
@@ -621,9 +621,9 @@ private:
 
     HbaMem* abar = nullptr;
 
-    Ahci();
+    AhciController();
 
-    PCI_DEVICE_DRIVER_IMPLEMENT_CREATE_INSTANCE(Ahci);
+    PCI_DEVICE_DRIVER_IMPLEMENT_CREATE_INSTANCE(AhciController);
 
     TimeProvider &time;
 

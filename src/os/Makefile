@@ -94,16 +94,23 @@ QEMU_BIN = qemu-system-i386 -machine pc
 KVM_BIN = qemu-system-i386 -machine pc,accel=kvm,kernel-irqchip=off
 GRUB_BIN = grub-mkrescue /usr/lib/grub/i386-pc
 
-QEMU_DEFAULT_PARAMS = -boot d -cdrom $(OBJDIR)/hhuOS.iso -m 1G -k de -vga std -monitor stdio \
-					  -cpu 486,+sse,+sse2 \
-					  -drive index=0,if=floppy \
-					  -device piix3-usb-uhci,id=uhci \
-					  -drive format=raw,file=hdd0.img,if=none,id=disk0 \
-					  -device ich9-ahci,id=ahci \
-					  -device ide-drive,drive=disk0,bus=ahci.0 \
-					  -rtc base=localtime,clock=host \
-					  -device sb16,irq=10,dma=1 \
-					  -soundhw pcspk
+QEMU_DEFAULT_PARAMS =	-boot d \
+						-monitor stdio \
+						-k de \
+						-vga std \
+						-cpu 486,+sse,+sse2 \
+						-m 1G \
+						-rtc base=localtime,clock=host \
+						-soundhw pcspk \
+						-device sb16,irq=10,dma=1 \
+						-device isa-ide,id=ata \
+						-device ich9-ahci,id=ahci \
+						-device piix3-usb-uhci,id=uhci \
+						-drive format=raw,file=hdd0.img,if=none,id=disk0 \
+						-drive format=raw,file=ata.img,if=none,id=disk1 \
+						-device ide-drive,drive=disk0,bus=ahci.0 \
+						-device ide-drive,drive=disk1,bus=ata.0 \
+						-cdrom $(OBJDIR)/hhuOS.iso
 
 #-------------------------------------------#
 # Build dependencies                        #

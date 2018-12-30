@@ -6,7 +6,7 @@
 #include <kernel/services/TimeService.h>
 #include <cstdint>
 
-class Uhci : public PciDeviceDriver, InterruptHandler {
+class UhciController : public PciDeviceDriver, InterruptHandler {
 
 private:
 
@@ -161,9 +161,9 @@ private:
 
 public:
 
-    Uhci() = default;
+    UhciController() = default;
 
-    ~Uhci() override;
+    ~UhciController() override;
 
     void resetHostController();
 
@@ -197,7 +197,7 @@ public:
 
     void setup(const Pci::Device &device) override;
 
-    PCI_DEVICE_DRIVER_IMPLEMENT_CREATE_INSTANCE(Uhci);
+    PCI_DEVICE_DRIVER_IMPLEMENT_CREATE_INSTANCE(UhciController);
 };
 
 
