@@ -40,6 +40,14 @@ public:
 
 private:
 
+    void selectDrive(uint8_t driveNumber);
+
+    bool busyWait();
+
+    bool resetSelectedDrive();
+
+private:
+
     Logger *log = nullptr;
 
     TimeService *timeService = nullptr;

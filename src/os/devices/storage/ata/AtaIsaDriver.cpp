@@ -79,15 +79,15 @@ bool AtaIsaDriver::checkDrive(AtaCommandBasePort commandBasePort, AtaControlBase
         return false;
     }
 
-    // Select drive 0; Afterwards, one should wait at least 400ns
+    // Select drive; Afterwards, one should wait at least 400ns
     driveHeadRegister.outb(driveNumber << 4);
     timeService->msleep(1);
 
-    // Reset drive 0; Afterwards, one should wait at least 5us
+    // Reset drive; Afterwards, one should wait at least 5us
     deviceControlRegister.outb(0x04);
     timeService->msleep(1);
 
-    // Clear the reset bit and disable interrupts; Afterwards, one should wait at least 2 us
+    // Clear the reset bit and disable interrupts; Afterwards, one should wait at least 2 ms
     deviceControlRegister.outb(0x02);
     timeService->msleep(2);
 

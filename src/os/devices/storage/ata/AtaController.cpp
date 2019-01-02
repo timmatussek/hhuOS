@@ -48,4 +48,64 @@ AtaController::AtaController(uint32_t commandBasePort, uint32_t controlBasePort,
     if(commandBasePort == AtaIsaDriver::COMMAND_BASE_PORT_2 || controlBasePort == AtaIsaDriver::CONTROL_BASE_PORT_2) {
         DEFAULT_SECONDARY_PORTS_IN_USE = true;
     }
+
+    log = &Logger::get("ATA");
+
+    selectDrive(0x00);
+
+    if(resetSelectedDrive()) {
+        if (sectorCountRegister.inb() == 0x01 && sectorNumberRegister.inb() == 0x01) {
+            log->info("Detected primary drive");
+        }
+    }
+
+    selectDrive(0x01);
+
+    if(resetSelectedDrive()) {
+        if (sectorCountRegister.inb() == 0x01 && sectorNumberRegister.inb() == 0x01) {
+            log->info("Detected secondary drive");
+        }
+    }
+}
+
+void AtaController::selectDrive(uint8_t driveNumber) {
+    // Check for invalid drive number
+    if(driveNumber > 1) {
+        return;
+    }
+
+    // Select drive 0; Afterwards, one should wait at least 400ns
+    driveHeadRegister.outb(driveNumber << 4);
+    timeService->msleep(1);
+}
+
+bool AtaController::busyWait() {
+    uint32_t time = timeService->getSystemTime();
+
+    while(alternateStatusRegister.inb() & 0x80) {
+        // Check for timeout
+        if(timeService->getSystemTime() >= time + 100) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool AtaController::resetSelectedDrive() {
+    // Reset selected drive; Afterwards, one should wait at least 5us
+    deviceControlRegister.outb(0x04);
+    timeService->msleep(1);
+
+    // Clear the reset bit and disable interrupts; Afterwards, one should wait at least 2 ms
+    deviceControlRegister.outb(0x02);
+    timeService->msleep(2);
+
+    if(!busyWait()) {
+        return false;
+    }
+
+    // Check for errors
+    return errorRegister.inb() == 0;
+
 }
