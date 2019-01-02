@@ -47,6 +47,8 @@
 #include <kernel/log/PortAppender.h>
 #include <kernel/Bios.h>
 #include <devices/storage/ata/AtaController.h>
+#include <devices/storage/ata/AtaPciDriver.h>
+#include <devices/storage/ata/AtaModule.h>
 #include "GatesOfHell.h"
 #include "BuildConfig.h"
 
@@ -199,7 +201,8 @@ void GatesOfHell::afterPciScanModHook() {
         loadModule("/mod/" + module);
     }
 
-    AtaController::setup();
+    auto *ataModule = new AtaModule();
+    ataModule->initialize();
 
     AhciController ahci;
     UhciController uhci;

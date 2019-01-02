@@ -103,14 +103,14 @@ QEMU_DEFAULT_PARAMS =	-boot d \
 						-rtc base=localtime,clock=host \
 						-soundhw pcspk \
 						-device sb16,irq=10,dma=1 \
-						-device isa-ide,id=ata \
 						-device ich9-ahci,id=ahci \
 						-device piix3-usb-uhci,id=uhci \
 						-drive format=raw,file=hdd0.img,if=none,id=disk0 \
 						-drive format=raw,file=ata.img,if=none,id=disk1 \
+						-drive format=raw,file=$(OBJDIR)/hhuOS.iso,if=none,id=cdrom0 \
 						-device ide-drive,drive=disk0,bus=ahci.0 \
-						-device ide-drive,drive=disk1,bus=ata.0 \
-						-cdrom $(OBJDIR)/hhuOS.iso
+						-device ide-cd,drive=cdrom0,bus=ide.0 \
+						-device ide-drive,drive=disk1,bus=ide.1
 
 #-------------------------------------------#
 # Build dependencies                        #

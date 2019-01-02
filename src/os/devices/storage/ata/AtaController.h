@@ -17,63 +17,52 @@
 #ifndef HHUOS_ATACONTROLLER_H
 #define HHUOS_ATACONTROLLER_H
 
-#include <kernel/IOport.h>
 #include <kernel/services/TimeService.h>
+#include <lib/IoPortWrapper.h>
 
 class AtaController {
 
 public:
 
-    enum AtaCommandBasePort : uint16_t {
-        COMMAND_BASE_PORT_1 = 0x1f0,
-        COMMAND_BASE_PORT_2 = 0x170
-    };
+    friend class AtaIsaDriver;
+    friend class AtaPciDriver;
 
-    enum AtaControlBasePort : uint16_t {
-        CONTROL_BASE_PORT_1 = 0x3f4,
-        CONTROL_BASE_PORT_2 = 0x374
-    };
+    static bool DEFAULT_PRIMARY_PORTS_IN_USE;
+    static bool DEFAULT_SECONDARY_PORTS_IN_USE;
 
 public:
 
-    AtaController(AtaCommandBasePort commandBasePort, AtaControlBasePort controlBasePort);
+    AtaController(uint32_t commandBasePort, uint32_t controlBasePort, bool useMmio);
 
     AtaController(const AtaController &copy) = delete;
 
     ~AtaController() = default;
 
-    static void setup();
-
 private:
 
-    static bool checkDrive(AtaController::AtaCommandBasePort commandBasePort,
-                           AtaController::AtaControlBasePort controlBasePort, uint8_t driveNumber);
-
-private:
-
-    static Logger &log;
+    Logger *log = nullptr;
 
     TimeService *timeService = nullptr;
 
     // Command registers
-    IOport dataRegister;
-    IOport errorRegister;
-    IOport featureRegister;
-    IOport sectorCountRegister;
-    IOport sectorNumberRegister;
-    IOport cylinderLowRegister;
-    IOport cylinderHighRegister;
-    IOport lbaLowRegister;
-    IOport lbaMidRegister;
-    IOport lbaHighRegister;
-    IOport driveHeadRegister;
-    IOport statusRegister;
-    IOport commandRegister;
+    IoPortWrapper dataRegister;
+    IoPortWrapper errorRegister;
+    IoPortWrapper featureRegister;
+    IoPortWrapper sectorCountRegister;
+    IoPortWrapper sectorNumberRegister;
+    IoPortWrapper cylinderLowRegister;
+    IoPortWrapper cylinderHighRegister;
+    IoPortWrapper lbaLowRegister;
+    IoPortWrapper lbaMidRegister;
+    IoPortWrapper lbaHighRegister;
+    IoPortWrapper driveHeadRegister;
+    IoPortWrapper statusRegister;
+    IoPortWrapper commandRegister;
 
     // Control registers
-    IOport alternateStatusRegister;
-    IOport deviceControlRegister;
-    IOport driveAddressRegister;
+    IoPortWrapper alternateStatusRegister;
+    IoPortWrapper deviceControlRegister;
+    IoPortWrapper driveAddressRegister;
 
 };
 
