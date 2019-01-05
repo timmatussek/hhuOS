@@ -12,11 +12,11 @@ bool AtaDevice::identify(uint8_t identifyCommand) {
 
     controller.acquireControllerLock();
 
-    controller.selectDrive(driveNumber);
+    controller.selectDrive(driveNumber, false);
 
     controller.commandRegister.outw(identifyCommand);
 
-    if(!controller.busyWait()) {
+    if(!controller.waitForNotBusy(controller.alternateStatusRegister)) {
         controller.releaseControllerLock();
 
         return false;
@@ -67,8 +67,9 @@ bool AtaDevice::identify(uint8_t identifyCommand) {
     log->info("Model number: %s", modelNumber);
     log->info("Serial number: %s", serialNumber);
     log->info("Firmware revision: %s", firmareRevision);
-    log->info("Supports CHS: %s, Supports LBA28: %s, Supports LBA48: %s", supportsChs ? "true" : "false",
-            supportsLba28 ? "true" : "false", supportsLba48 ? "true" : "false");
+    log->info("Supports CHS: %s, Supports LBA28: %s, Supports LBA48: %s",
+            supportsChs ? "true" : "false", supportsLba28 ? "true" : "false", supportsLba48 ? "true" : "false");
+    log->info("Supports 32-Bit IO: %s", supportsDoubleWordIO ? "true" : "false");
     log->info("Sector size: %u, Sector count: %u", sectorSize, sectorCount);
 
     return true;
@@ -81,12 +82,16 @@ bool AtaDevice::checkDoubleWordIO(uint16_t *originalBuf, uint8_t identifyCommand
 
     controller.commandRegister.outw(identifyCommand);
 
-    if(!controller.busyWait()) {
-        return true;
+    if(!controller.waitForNotBusy(controller.alternateStatusRegister)) {
+        controller.releaseControllerLock();
+
+        return false;
     }
 
     if(controller.errorRegister.inb() != 0) {
-        return true;
+        controller.releaseControllerLock();
+
+        return false;
     }
 
     for(uint32_t i = 0; i < 128; i++) {

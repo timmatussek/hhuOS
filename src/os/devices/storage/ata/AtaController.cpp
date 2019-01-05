@@ -57,7 +57,7 @@ AtaController::AtaController(uint32_t commandBasePort, uint32_t controlBasePort,
     auto *storageService = Kernel::getService<StorageService>();
 
     softwareReset(0x00);
-    selectDrive(0x00);
+    selectDrive(0x00, false);
 
     if(sectorNumberRegister.inb() == 0x01 && sectorCountRegister.inb() == 0x01) {
         uint8_t cl = cylinderLowRegister.inb();
@@ -81,7 +81,7 @@ AtaController::AtaController(uint32_t commandBasePort, uint32_t controlBasePort,
     }
 
     softwareReset(0x01);
-    selectDrive(0x01);
+    selectDrive(0x01, false);
 
     if(sectorNumberRegister.inb() == 0x01 && sectorCountRegister.inb() == 0x01) {
         uint8_t cl = cylinderLowRegister.inb();
@@ -105,28 +105,64 @@ AtaController::AtaController(uint32_t commandBasePort, uint32_t controlBasePort,
     }
 }
 
-void AtaController::selectDrive(uint8_t driveNumber) {
+bool AtaController::selectDrive(uint8_t driveNumber, bool setLba, uint8_t lbaHighest) {
     // Check for invalid drive number
     if(driveNumber > 1) {
-        return;
+        return false;
+    }
+
+    lbaHighest = static_cast<uint8_t>(lbaHighest & 0x0f);
+
+    auto outByte = static_cast<uint8_t>(0xa0 | driveNumber << 4 | lbaHighest);
+
+    if(setLba) {
+        outByte |= 0x40;
     }
 
     // Check if drive is already selected
-    if(selectedDrive == driveNumber) {
-        return;
+    if(outByte == lastSelectByte) {
+        return true;
     }
 
     // Select drive; Afterwards, one should wait at least 400ns
-    driveHeadRegister.outb(static_cast<uint8_t>(0xa0 | driveNumber << 4));
+    driveHeadRegister.outb(outByte);
     timeService->msleep(1);
 
-    selectedDrive = driveNumber;
+    lastSelectByte = outByte;
+
+    return true;
 }
 
-bool AtaController::busyWait() {
+bool AtaController::waitForNotBusy(IoPortWrapper &port) {
     uint32_t time = timeService->getSystemTime();
 
-    while(alternateStatusRegister.inb() & 0x80) {
+    while(port.inb() & 0x80) {
+        // Check for timeout
+        if(timeService->getSystemTime() >= time + ATA_TIMEOUT) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool AtaController::waitForReady(IoPortWrapper &port) {
+    uint32_t time = timeService->getSystemTime();
+
+    while(!(port.inb() & 0x40)) {
+        // Check for timeout
+        if(timeService->getSystemTime() >= time + ATA_TIMEOUT) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool AtaController::waitForDrq(IoPortWrapper &port) {
+    uint32_t time = timeService->getSystemTime();
+
+    while(!(port.inb() & 0x08)) {
         // Check for timeout
         if(timeService->getSystemTime() >= time + ATA_TIMEOUT) {
             return false;
@@ -137,7 +173,7 @@ bool AtaController::busyWait() {
 }
 
 bool AtaController::softwareReset(uint8_t driveNumber) {
-    selectDrive(driveNumber);
+    selectDrive(driveNumber, false);
 
     // Perform software reset; Afterwards, one should wait at least 5us
     deviceControlRegister.outb(0x04);
@@ -147,13 +183,13 @@ bool AtaController::softwareReset(uint8_t driveNumber) {
     deviceControlRegister.outb(0x02);
     timeService->msleep(2);
 
-    if(!busyWait()) {
+    if(!waitForNotBusy(alternateStatusRegister)) {
         return false;
     }
 
     timeService->msleep(5);
 
-    selectedDrive = 0x00;
+    lastSelectByte = 0x00;
 
     // Check for errors
     return errorRegister.inb() == 0;

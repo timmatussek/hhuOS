@@ -35,6 +35,14 @@ public:
     static bool DEFAULT_PRIMARY_PORTS_IN_USE;
     static bool DEFAULT_SECONDARY_PORTS_IN_USE;
 
+    enum AtaCommand : uint8_t {
+        NO_OPERATION = 0x00,
+        READ_SECTORS = 0x20,
+        WRITE_SECTORS = 0x30,
+        ATAPI_IDENTIFY = 0xa1,
+        ATA_IDENTIFY = 0xec
+    };
+
 public:
 
     AtaController(uint32_t commandBasePort, uint32_t controlBasePort, bool useMmio);
@@ -49,9 +57,13 @@ public:
 
 private:
 
-    void selectDrive(uint8_t driveNumber);
+    bool selectDrive(uint8_t driveNumber, bool setLba = false, uint8_t lbaHighest = 0x00);
 
-    bool busyWait();
+    bool waitForNotBusy(IoPortWrapper &port);
+
+    bool waitForReady(IoPortWrapper &port);
+
+    bool waitForDrq(IoPortWrapper &port);
 
     bool softwareReset(uint8_t driveNumber);
 
@@ -63,7 +75,7 @@ private:
 
     Spinlock controllerLock;
 
-    uint8_t selectedDrive = 0xff;
+    uint8_t lastSelectByte = 0xff;
 
     // Command registers
     IoPortWrapper dataRegister;

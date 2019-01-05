@@ -34,11 +34,11 @@ bool PataDevice::isValid(AtaController &controller, uint8_t driveNumber) {
 
     controller.acquireControllerLock();
 
-    controller.selectDrive(driveNumber);
+    controller.selectDrive(driveNumber, false);
 
     controller.commandRegister.outw(0xec);
 
-    if(!controller.busyWait()) {
+    if(!controller.waitForNotBusy(controller.alternateStatusRegister)) {
         controller.releaseControllerLock();
 
         return false;
@@ -62,6 +62,63 @@ bool PataDevice::isValid(AtaController &controller, uint8_t driveNumber) {
 }
 
 bool PataDevice::read(uint8_t *buff, uint32_t sector, uint32_t count) {
+    if(supportsLba28) {
+        auto lbaLow = (uint8_t) sector;
+        auto lbaMid = (uint8_t) (sector >> 8);
+        auto lbaHigh = (uint8_t) (sector >> 16);
+        auto lbaHighest = (uint8_t) (sector >> 24);
+
+        controller.acquireControllerLock();
+
+        if(!controller.selectDrive(driveNumber, true, lbaHighest)) {
+            controller.releaseControllerLock();
+
+            return false;
+        }
+
+        if(!controller.waitForReady(controller.alternateStatusRegister)) {
+            controller.releaseControllerLock();
+
+            return false;
+        }
+
+        controller.sectorCountRegister.outb(static_cast<uint8_t>(count));
+
+        controller.lbaLowRegister.outb(lbaLow);
+        controller.lbaMidRegister.outb(lbaMid);
+        controller.lbaHighRegister.outb(lbaHigh);
+
+        controller.commandRegister.outb(AtaController::READ_SECTORS);
+
+        for(uint32_t i = 0; i < count; i++) {
+            if(!controller.waitForNotBusy(controller.statusRegister)) {
+                controller.releaseControllerLock();
+
+                return false;
+            }
+
+            if(!controller.waitForDrq(controller.statusRegister)) {
+                controller.releaseControllerLock();
+
+                return false;
+            }
+
+            if(controller.errorRegister.inb()) {
+                controller.releaseControllerLock();
+
+                return false;
+            }
+
+            for(uint32_t j = 0; j < 256; j++) {
+                *buff++ = controller.dataRegister.inb();
+            }
+        }
+
+        controller.releaseControllerLock();
+
+        return true;
+    }
+
     return false;
 }
 

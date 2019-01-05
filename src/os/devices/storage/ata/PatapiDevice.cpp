@@ -14,11 +14,11 @@ bool PatapiDevice::isValid(AtaController &controller, uint8_t driveNumber) {
 
     controller.acquireControllerLock();
 
-    controller.selectDrive(driveNumber);
+    controller.selectDrive(driveNumber, false);
 
     controller.commandRegister.outw(0xa1);
 
-    if(!controller.busyWait()) {
+    if(!controller.waitForNotBusy(controller.alternateStatusRegister)) {
         controller.releaseControllerLock();
 
         return false;
