@@ -110,7 +110,7 @@ QEMU_DEFAULT_PARAMS =	-boot d \
 						-drive format=raw,file=$(OBJDIR)/hhuOS.iso,if=none,id=cdrom0 \
 						-device ide-drive,drive=disk0,bus=ahci.0 \
 						-device ide-cd,drive=cdrom0,bus=ide.0 \
-						-device ide-drive,drive=disk1,bus=ide.1
+						-device ide-drive,drive=disk1,bus=ide.0
 
 #-------------------------------------------#
 # Build dependencies                        #

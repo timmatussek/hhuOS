@@ -246,7 +246,8 @@ void Pci::checkFunction(uint8_t bus, uint8_t device, uint8_t function) {
 
     String vendorName = getIdentifier(vendorId, deviceId);
 
-    log.info("Found PCI-Device %04x:%04x on bus %u: %s", dev.vendorId, dev.deviceId, bus, (const char*) vendorName);
+    log.info("Found PCI-Device %04x:%04x on bus %u:", dev.vendorId, dev.deviceId, bus);
+    log.info("Name: %s", (const char*) vendorName);
 
     pciDevices.add(dev);
 }

@@ -21,8 +21,7 @@ AtaIsaDriver::AtaIsaDriver(bool primaryController, bool secondaryController) {
     log = &Logger::get("ATA");
 
     if(primaryController) {
-        if (checkDrive(COMMAND_BASE_PORT_1, CONTROL_BASE_PORT_1, 0) ||
-            checkDrive(COMMAND_BASE_PORT_1, CONTROL_BASE_PORT_1, 1)) {
+        if (checkController(COMMAND_BASE_PORT_1, CONTROL_BASE_PORT_1)) {
 
             log->info("Found primary controller using the default ISA ports; command port: 0x%08x,"
                       "control port: 0x%08x", COMMAND_BASE_PORT_1, CONTROL_BASE_PORT_1);
@@ -32,8 +31,7 @@ AtaIsaDriver::AtaIsaDriver(bool primaryController, bool secondaryController) {
     }
 
     if(secondaryController) {
-        if (checkDrive(COMMAND_BASE_PORT_2, CONTROL_BASE_PORT_2, 0) ||
-            checkDrive(COMMAND_BASE_PORT_2, CONTROL_BASE_PORT_2, 1)) {
+        if (checkController(COMMAND_BASE_PORT_2, CONTROL_BASE_PORT_2)) {
 
             log->info("Found secondary controller using the default ISA ports; command port: 0x%08x,"
                       "control port: 0x%08x", COMMAND_BASE_PORT_2, CONTROL_BASE_PORT_2);
@@ -45,17 +43,13 @@ AtaIsaDriver::AtaIsaDriver(bool primaryController, bool secondaryController) {
 
 bool AtaIsaDriver::isAvailable(bool primaryController, bool secondaryController) {
     if(primaryController) {
-        if (checkDrive(COMMAND_BASE_PORT_1, CONTROL_BASE_PORT_1, 0) ||
-            checkDrive(COMMAND_BASE_PORT_1, CONTROL_BASE_PORT_1, 1)) {
-            
+        if (checkController(COMMAND_BASE_PORT_1, CONTROL_BASE_PORT_1)) {
             return true;
         }
     }
 
     if(secondaryController) {
-        if (checkDrive(COMMAND_BASE_PORT_2, CONTROL_BASE_PORT_2, 0) ||
-            checkDrive(COMMAND_BASE_PORT_2, CONTROL_BASE_PORT_2, 1)) {
-            
+        if (checkController(COMMAND_BASE_PORT_2, CONTROL_BASE_PORT_2)) {
             return true;
         }
     }
@@ -63,32 +57,27 @@ bool AtaIsaDriver::isAvailable(bool primaryController, bool secondaryController)
     return false;
 }
 
-bool AtaIsaDriver::checkDrive(AtaCommandBasePort commandBasePort, AtaControlBasePort controlBasePort,
-                               uint8_t driveNumber) {
+bool AtaIsaDriver::checkController(AtaCommandBasePort commandBasePort, AtaControlBasePort controlBasePort) {
     auto *timeService = Kernel::getService<TimeService>();
 
-    IOport errorRegister(commandBasePort + 0x01);
     IOport sectorCountRegister(commandBasePort + 0x02);
     IOport sectorNumberRegister(commandBasePort + 0x03);
+    IOport cylinderLowRegister(commandBasePort + 0x04);
+    IOport cylinderHighRegister(commandBasePort + 0x05);
     IOport driveHeadRegister(commandBasePort + 0x06);
-    IOport alternateStatusRegister(commandBasePort + 0x02);
+    IOport alternateStatusRegister(controlBasePort + 0x02);
     IOport deviceControlRegister(controlBasePort + 0x02);
 
-    // Check for invalid drive number
-    if(driveNumber > 1) {
-        return false;
-    }
-
-    // Select drive; Afterwards, one should wait at least 400ns
-    driveHeadRegister.outb(driveNumber << 4);
+    // Select drive 0; Afterwards, one should wait at least 400ns
+    driveHeadRegister.outb(0xa0);
     timeService->msleep(1);
 
-    // Reset drive; Afterwards, one should wait at least 5us
+    // Perform software reset; Afterwards, one should wait at least 5us
     deviceControlRegister.outb(0x04);
     timeService->msleep(1);
 
     // Clear the reset bit and disable interrupts; Afterwards, one should wait at least 2 ms
-    deviceControlRegister.outb(0x02);
+    deviceControlRegister.outb(0x00);
     timeService->msleep(2);
 
     // Wait for the busy bit to be clear
@@ -101,11 +90,64 @@ bool AtaIsaDriver::checkDrive(AtaCommandBasePort commandBasePort, AtaControlBase
         }
     }
 
-    // Check for errors
-    if(errorRegister.inb() != 0) {
-        return false;
+    timeService->msleep(5);
+
+    // Select drive 0; Afterwards, one should wait at least 400ns
+    driveHeadRegister.outb(0xa0);
+    timeService->msleep(1);
+
+    // Check if drive 0 is valid
+    if(sectorNumberRegister.inb() == 0x01 && sectorCountRegister.inb() == 0x01) {
+        uint8_t cl = cylinderLowRegister.inb();
+        uint8_t ch = cylinderHighRegister.inb();
+
+        if ((cl == 0x00 && ch == 0x00) ||    // PATA
+            (cl == 0x14 && ch == 0xeb) ||    // PATAPI
+            (cl == 0x3c && ch == 0xc3) ||    // SATA
+            (cl == 0x69 && ch == 0x96)) {    // SATAPI
+            return true;
+        }
     }
 
-    // Check sector count and sector number registers; If they both are set to 1, a drive is present
-    return !(sectorCountRegister.inb() != 0x01 || sectorNumberRegister.inb() != 0x01);
+    // Select drive 1; Afterwards, one should wait at least 400ns
+    driveHeadRegister.outb(0xa0);
+    timeService->msleep(1);
+
+    // Perform software reset; Afterwards, one should wait at least 5us
+    deviceControlRegister.outb(0x04);
+    timeService->msleep(1);
+
+    // Clear the reset bit and disable interrupts; Afterwards, one should wait at least 2 ms
+    deviceControlRegister.outb(0x02);
+    timeService->msleep(2);
+
+    // Wait for the busy bit to be clear
+    time = timeService->getSystemTime();
+
+    while(alternateStatusRegister.inb() & 0x80) {
+        // Check for timeout
+        if(timeService->getSystemTime() >= time + 100) {
+            return false;
+        }
+    }
+
+    timeService->msleep(5);
+
+    // Select drive 1; Afterwards, one should wait at least 400ns
+    driveHeadRegister.outb(0xb0);
+    timeService->msleep(1);
+
+    if(sectorNumberRegister.inb() == 0x01 && sectorCountRegister.inb() == 0x01) {
+        uint8_t cl = cylinderLowRegister.inb();
+        uint8_t ch = cylinderHighRegister.inb();
+
+        if ((cl == 0x00 && ch == 0x00) ||    // PATA
+            (cl == 0x14 && ch == 0xeb) ||    // PATAPI
+            (cl == 0x3c && ch == 0xc3) ||    // SATA
+            (cl == 0x69 && ch == 0x96)) {    // SATAPI
+            return true;
+        }
+    }
+
+    return false;
 }

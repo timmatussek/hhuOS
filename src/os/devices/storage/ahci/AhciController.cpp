@@ -23,7 +23,6 @@
 #include"kernel/memory/SystemManagement.h"
 
 Logger &AhciController::log = Logger::get("AHCI");
-uint32_t AhciController::deviceCount = 0;
 
 AhciController::AhciController() : time(Pit::getInstance()) {
     timeService = Kernel::getService<TimeService>();
@@ -99,7 +98,7 @@ void AhciController::setup(const Pci::Device &dev) {
 
     for (uint8_t i = 0; i < numDevices; i++) {
 
-        StorageDevice *storageDevice = new AhciDevice(*this, i,"ahci" + String::valueOf(deviceCount, 10));
+        StorageDevice *storageDevice = new AhciDevice(*this, i);
 
         uint8_t buf[512];
 
@@ -112,8 +111,6 @@ void AhciController::setup(const Pci::Device &dev) {
         storageDevice->read(buf, 0, 1);
 
         storageService->registerDevice(storageDevice);
-
-        deviceCount++;
     }
 }
 

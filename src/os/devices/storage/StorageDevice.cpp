@@ -20,6 +20,9 @@
 #include "StorageDevice.h"
 #include "Partition.h"
 
+uint32_t StorageDevice::hddCounter = 0;
+uint32_t StorageDevice::cdCounter = 0;
+
 StorageDevice::StorageDevice(String name) : name(name) {
 
 }
@@ -507,4 +510,12 @@ uint32_t StorageDevice::createPartitionTable() {
 
 uint8_t StorageDevice::getSystemId() {
     return 0;
+}
+
+String StorageDevice::generateHddName() {
+    return String::format("hdd%u", hddCounter++);
+}
+
+String StorageDevice::generateCdName() {
+    return String::format("cd%u", cdCounter++);
 }

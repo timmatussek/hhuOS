@@ -42,7 +42,7 @@ public:
      * @param ahciDiskNumber The slot, that the device takes in the controller's device-array.
      * @param name The name
      */
-    AhciDevice(AhciController &controller, uint8_t ahciDiskNumber, String name);
+    AhciDevice(AhciController &controller, uint8_t ahciDiskNumber);
 
     /**
      * Copy-constructor.

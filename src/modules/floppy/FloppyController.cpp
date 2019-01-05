@@ -74,7 +74,7 @@ void FloppyController::setup() {
 
         log->info("Found primary floppy drive");
 
-        FloppyDevice *device = new FloppyDevice(*this, 0, primaryDriveType, "fdd0");
+        FloppyDevice *device = new FloppyDevice(*this, 0, primaryDriveType);
 
         bool ret = resetDrive(*device);
 
@@ -90,7 +90,7 @@ void FloppyController::setup() {
 
         log->info("Found secondary floppy drive");
 
-        FloppyDevice *device = new FloppyDevice(*this, 1, secondaryDriveType, "fdd1");
+        FloppyDevice *device = new FloppyDevice(*this, 1, secondaryDriveType);
 
         bool ret = resetDrive(*device);
 

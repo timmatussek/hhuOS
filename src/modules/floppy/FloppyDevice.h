@@ -73,8 +73,7 @@ public:
      * @param sectorCount The amount of sectors, that the virtual disk shall consist of
      * @param name The name
      */
-    FloppyDevice(FloppyController &controller, uint8_t driveNumber, FloppyController::DriveType driveType,
-                 const String &name);
+    FloppyDevice(FloppyController &controller, uint8_t driveNumber, FloppyController::DriveType driveType);
 
     /**
      * Copy-constructor.

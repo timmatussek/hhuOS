@@ -15,6 +15,9 @@
  */
 
 #include <kernel/Kernel.h>
+#include <kernel/services/StorageService.h>
+#include "PataDevice.h"
+#include "PatapiDevice.h"
 #include "AtaIsaDriver.h"
 #include "AtaController.h"
 
@@ -51,19 +54,53 @@ AtaController::AtaController(uint32_t commandBasePort, uint32_t controlBasePort,
 
     log = &Logger::get("ATA");
 
+    auto *storageService = Kernel::getService<StorageService>();
+
+    softwareReset(0x00);
     selectDrive(0x00);
 
-    if(resetSelectedDrive()) {
-        if (sectorCountRegister.inb() == 0x01 && sectorNumberRegister.inb() == 0x01) {
-            log->info("Detected primary drive");
+    if(sectorNumberRegister.inb() == 0x01 && sectorCountRegister.inb() == 0x01) {
+        uint8_t cl = cylinderLowRegister.inb();
+        uint8_t ch = cylinderHighRegister.inb();
+
+        if (cl == 0x00 && ch == 0x00) {
+            if(PataDevice::isValid(*this, 0x00)) {
+                log->info("Detected primary drive of type 'PATA'");
+                storageService->registerDevice(new PataDevice(*this, 0x00));
+            }
+        } else if (cl == 0x14 && ch == 0xeb) {
+            if(PatapiDevice::isValid(*this, 0x00)) {
+                log->info("Detected primary drive of type 'PATAPI'");
+                storageService->registerDevice(new PatapiDevice(*this, 0x00));
+            }
+        } else if (cl == 0x3c && ch == 0xc3) {
+            log->info("Detected primary drive of type 'SATA'");
+        } else if (cl == 0x69 && ch == 0x96) {
+            log->info("Detected primary drive of type 'SATAPI'");
         }
     }
 
+    softwareReset(0x01);
     selectDrive(0x01);
 
-    if(resetSelectedDrive()) {
-        if (sectorCountRegister.inb() == 0x01 && sectorNumberRegister.inb() == 0x01) {
-            log->info("Detected secondary drive");
+    if(sectorNumberRegister.inb() == 0x01 && sectorCountRegister.inb() == 0x01) {
+        uint8_t cl = cylinderLowRegister.inb();
+        uint8_t ch = cylinderHighRegister.inb();
+
+        if (cl == 0x00 && ch == 0x00) {
+            if(PataDevice::isValid(*this, 0x01)) {
+                log->info("Detected secondary drive of type 'PATA'");
+                storageService->registerDevice(new PataDevice(*this, 0x01));
+            }
+        } else if (cl == 0x14 && ch == 0xeb) {
+            if(PatapiDevice::isValid(*this, 0x00)) {
+                log->info("Detected secondary drive of type 'PATAPI'");
+                storageService->registerDevice(new PatapiDevice(*this, 0x01));
+            }
+        } else if (cl == 0x3c && ch == 0xc3) {
+            log->info("Detected secondary drive of type 'SATA'");
+        } else if (cl == 0x69 && ch == 0x96) {
+            log->info("Detected secondary drive of type 'SATAPI'");
         }
     }
 }
@@ -74,9 +111,16 @@ void AtaController::selectDrive(uint8_t driveNumber) {
         return;
     }
 
-    // Select drive 0; Afterwards, one should wait at least 400ns
-    driveHeadRegister.outb(driveNumber << 4);
+    // Check if drive is already selected
+    if(selectedDrive == driveNumber) {
+        return;
+    }
+
+    // Select drive; Afterwards, one should wait at least 400ns
+    driveHeadRegister.outb(static_cast<uint8_t>(0xa0 | driveNumber << 4));
     timeService->msleep(1);
+
+    selectedDrive = driveNumber;
 }
 
 bool AtaController::busyWait() {
@@ -84,7 +128,7 @@ bool AtaController::busyWait() {
 
     while(alternateStatusRegister.inb() & 0x80) {
         // Check for timeout
-        if(timeService->getSystemTime() >= time + 100) {
+        if(timeService->getSystemTime() >= time + ATA_TIMEOUT) {
             return false;
         }
     }
@@ -92,8 +136,10 @@ bool AtaController::busyWait() {
     return true;
 }
 
-bool AtaController::resetSelectedDrive() {
-    // Reset selected drive; Afterwards, one should wait at least 5us
+bool AtaController::softwareReset(uint8_t driveNumber) {
+    selectDrive(driveNumber);
+
+    // Perform software reset; Afterwards, one should wait at least 5us
     deviceControlRegister.outb(0x04);
     timeService->msleep(1);
 
@@ -105,7 +151,18 @@ bool AtaController::resetSelectedDrive() {
         return false;
     }
 
+    timeService->msleep(5);
+
+    selectedDrive = 0x00;
+
     // Check for errors
     return errorRegister.inb() == 0;
+}
 
+void AtaController::acquireControllerLock() {
+    controllerLock.acquire();
+}
+
+void AtaController::releaseControllerLock() {
+    controllerLock.release();
 }

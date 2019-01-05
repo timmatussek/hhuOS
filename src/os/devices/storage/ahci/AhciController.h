@@ -40,8 +40,6 @@ private:
 
     static Logger &log;
 
-    static uint32_t deviceCount;
-
     typedef enum {
         FIS_TYPE_REG_H2D	= 0x27,	// Register FIS - host to device
         FIS_TYPE_REG_D2H	= 0x34,	// Register FIS - device to host

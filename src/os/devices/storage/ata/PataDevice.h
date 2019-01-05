@@ -14,41 +14,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
-#ifndef HHUOS_ATAISADRIVER_H
-#define HHUOS_ATAISADRIVER_H
+#ifndef HHUOS_PATADEVICE_H
+#define HHUOS_PATADEVICE_H
 
 #include "AtaController.h"
+#include "AtaDevice.h"
 
-class AtaIsaDriver {
-
-public:
-
-    enum AtaCommandBasePort : uint16_t {
-        COMMAND_BASE_PORT_1 = 0x1f0,
-        COMMAND_BASE_PORT_2 = 0x170
-    };
-
-    enum AtaControlBasePort : uint16_t {
-        CONTROL_BASE_PORT_1 = 0x3f4,
-        CONTROL_BASE_PORT_2 = 0x374
-    };
+class PataDevice : public AtaDevice {
 
 public:
 
-    AtaIsaDriver(bool primaryController, bool secondaryController);
+    explicit PataDevice(AtaController &controller, uint8_t driveNumber);
 
-    ~AtaIsaDriver() = default;
+    PataDevice(const PataDevice &copy) = delete;
 
-    static bool isAvailable(bool primaryController, bool secondaryController);
+    ~PataDevice() override = default;
 
-    static bool checkController(AtaCommandBasePort commandBasePort, AtaControlBasePort controlBasePort);
+    static bool isValid(AtaController &controller, uint8_t driveNumber);
 
-private:
+    /**
+     * Overriding function from StorageDevice.
+     */
+    bool read(uint8_t *buff, uint32_t sector, uint32_t count) override;
 
-    Logger *log = nullptr;
-
-    AtaController *primaryController = nullptr;
-    AtaController *secondaryController = nullptr;
+    /**
+     * Overriding function from StorageDevice.
+     */
+    bool write(const uint8_t *buff, uint32_t sector, uint32_t count) override;
 
 };
 

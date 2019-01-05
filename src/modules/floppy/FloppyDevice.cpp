@@ -22,9 +22,11 @@ extern "C" {
 #include <lib/libc/math.h>
 }
 
-FloppyDevice::FloppyDevice(FloppyController &controller, uint8_t driveNumber, FloppyController::DriveType driveType,
-                           const String &name) : StorageDevice(name), controller(controller), driveNumber(driveNumber),
-                                                 driveType(driveType) {
+FloppyDevice::FloppyDevice(FloppyController &controller, uint8_t driveNumber, FloppyController::DriveType driveType) :
+        StorageDevice(String::format("fdd%u", driveNumber)),
+        controller(controller),
+        driveNumber(driveNumber),
+        driveType(driveType) {
 
     switch(driveType) {
         case FloppyController::DRIVE_TYPE_360KB_5_25 :

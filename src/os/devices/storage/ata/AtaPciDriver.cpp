@@ -50,9 +50,7 @@ void AtaPciDriver::setup(const Pci::Device &device) {
     if(primaryCommandPort == 0x00 || primaryControlPort == 0x00) {
         // Primary controller is running ISA compatibility mode
         // We have to check manually, which ports the controller is using
-        if(AtaIsaDriver::checkDrive(AtaIsaDriver::COMMAND_BASE_PORT_1, AtaIsaDriver::CONTROL_BASE_PORT_1, 0)||
-           AtaIsaDriver::checkDrive(AtaIsaDriver::COMMAND_BASE_PORT_1, AtaIsaDriver::CONTROL_BASE_PORT_1, 1)) {
-
+        if(AtaIsaDriver::checkController(AtaIsaDriver::COMMAND_BASE_PORT_1, AtaIsaDriver::CONTROL_BASE_PORT_1)) {
             log->info("Found primary controller running in ISA compatibility mode; command port: 0x%08x,"
                       "control port: 0x%08x, mmio: %s", AtaIsaDriver::COMMAND_BASE_PORT_1,
                       AtaIsaDriver::CONTROL_BASE_PORT_1, "false");
@@ -61,7 +59,7 @@ void AtaPciDriver::setup(const Pci::Device &device) {
                     AtaIsaDriver::CONTROL_BASE_PORT_1, false);
         }
     } else {
-        log->info("Found primary controller running in PCI native mode; command port: 0x%08x, control port: 0x%08x,"
+        log->info("Found primary controller running in PCI native mode; command port: 0x%08x, control port: 0x%08x, "
                   "mmio: %s", primaryCommandPort, primaryControlPort, primaryUseMmio ? "true" : "false");
 
         primaryController = new AtaController(primaryCommandPort, primaryControlPort, primaryUseMmio);
@@ -70,10 +68,8 @@ void AtaPciDriver::setup(const Pci::Device &device) {
     if(secondaryCommandPort == 0x00 || secondaryControlPort == 0x00) {
         // Secondary controller is running ISA compatibility mode
         // We have to check manually, which ports the controller is using
-        if(AtaIsaDriver::checkDrive(AtaIsaDriver::COMMAND_BASE_PORT_2, AtaIsaDriver::CONTROL_BASE_PORT_2, 0)||
-           AtaIsaDriver::checkDrive(AtaIsaDriver::COMMAND_BASE_PORT_2, AtaIsaDriver::CONTROL_BASE_PORT_2, 1)) {
-
-            log->info("Found secondary controller running in ISA compatibility mode; command port: 0x%08x,"
+        if(AtaIsaDriver::checkController(AtaIsaDriver::COMMAND_BASE_PORT_2, AtaIsaDriver::CONTROL_BASE_PORT_2)) {
+            log->info("Found secondary controller running in ISA compatibility mode; command port: 0x%08x, "
                       "control port: 0x%08x, mmio: %s", AtaIsaDriver::COMMAND_BASE_PORT_2,
                       AtaIsaDriver::CONTROL_BASE_PORT_2, "false");
 

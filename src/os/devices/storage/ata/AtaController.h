@@ -19,6 +19,8 @@
 
 #include <kernel/services/TimeService.h>
 #include <lib/IoPortWrapper.h>
+#include <cstdint>
+#include <stdint-gcc.h>
 
 class AtaController {
 
@@ -26,6 +28,9 @@ public:
 
     friend class AtaIsaDriver;
     friend class AtaPciDriver;
+    friend class AtaDevice;
+    friend class PataDevice;
+    friend class PatapiDevice;
 
     static bool DEFAULT_PRIMARY_PORTS_IN_USE;
     static bool DEFAULT_SECONDARY_PORTS_IN_USE;
@@ -38,19 +43,27 @@ public:
 
     ~AtaController() = default;
 
+    void acquireControllerLock();
+
+    void releaseControllerLock();
+
 private:
 
     void selectDrive(uint8_t driveNumber);
 
     bool busyWait();
 
-    bool resetSelectedDrive();
+    bool softwareReset(uint8_t driveNumber);
 
 private:
 
     Logger *log = nullptr;
 
     TimeService *timeService = nullptr;
+
+    Spinlock controllerLock;
+
+    uint8_t selectedDrive = 0xff;
 
     // Command registers
     IoPortWrapper dataRegister;
@@ -72,6 +85,7 @@ private:
     IoPortWrapper deviceControlRegister;
     IoPortWrapper driveAddressRegister;
 
+    static const constexpr uint32_t ATA_TIMEOUT = 100;
 };
 
 #endif

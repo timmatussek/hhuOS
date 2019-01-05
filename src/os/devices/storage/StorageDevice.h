@@ -114,6 +114,9 @@ private:
 
     static const constexpr uint32_t PARTITON_TABLE_START = 0x1be;
 
+    static uint32_t hddCounter;
+    static uint32_t cdCounter;
+
 public:
 /**
  * Possible return codes for functions of this class.
@@ -353,6 +356,16 @@ enum SYSTEM_ID {
      * Destructor.
      */
     virtual ~StorageDevice() = default;
+
+    /**
+     * Helper function for generating unique names for hard disk drives.
+     */
+    static String generateHddName();
+
+    /**
+     * Helper function for generating unique names for cd drives.
+     */
+    static String generateCdName();
 
     /**
      * Get the device's name (e.g. "hdd1", "usb2p1", etc...).

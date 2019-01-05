@@ -16,8 +16,8 @@
 
 #include "AhciDevice.h"
 
-AhciDevice::AhciDevice(AhciController &controller, uint8_t ahciDiskNumber, String name) :
-        StorageDevice(name), controller(controller), ahciDiskNumber(ahciDiskNumber) {
+AhciDevice::AhciDevice(AhciController &controller, uint8_t ahciDiskNumber) :
+        StorageDevice(generateHddName()), controller(controller), ahciDiskNumber(ahciDiskNumber) {
     deviceInfo = controller.getDeviceInfo(ahciDiskNumber);
 }
 
