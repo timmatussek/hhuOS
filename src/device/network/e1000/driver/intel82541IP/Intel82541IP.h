@@ -30,7 +30,7 @@
  * It will be initialized in the E1000::initialize method.
  * This drivers setup method calls it.
  * Because the corresponding card has an EEPROM, the MAC-address
- * will be read from it and stored in the Mac attribute from E1000.
+ * will be ready from it and stored in the Mac attribute from E1000.
  *
  * All methods called due proceeding E1000::initialize are implemented
  * in this class.

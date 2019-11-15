@@ -18,6 +18,7 @@
 #include <kernel/service/ModuleLoader.h>
 #include <lib/file/elf/Elf.h>
 #include <lib/file/FileStatus.h>
+#include <kernel/process/ProcessScheduler.h>
 #include "Management.h"
 
 #include "device/misc/Bios.h"
@@ -249,6 +250,10 @@ void Management::init() {
     // add first address space to list with all address spaces
     addressSpaces = new Util::ArrayList<VirtualAddressSpace *>;
     addressSpaces->add(currentAddressSpace);
+
+    kernelAddressSpace = currentAddressSpace;
+    
+    Kernel::ProcessScheduler::getInstance();
 
     // Initialize global objects afterwards, because now missing pages can be mapped
     _init();

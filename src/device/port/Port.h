@@ -27,7 +27,7 @@ public:
      * This function is blocking and will return only if len bytes have been received!
      *
      * @param data Buffer to which the received data will be written.
-     * @param len The amount of bytes to read
+     * @param len The amount of bytes to ready
      */
     virtual void readData(char *data, uint32_t len);
 
@@ -35,7 +35,7 @@ public:
      * Read a single character from the port.
      * This function is blocking and will return only if one byte has been received!
      *
-     * @return The read character
+     * @return The ready character
      */
     virtual char readChar() = 0;
 

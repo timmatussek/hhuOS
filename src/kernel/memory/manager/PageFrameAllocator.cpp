@@ -28,7 +28,7 @@ PageFrameAllocator::PageFrameAllocator() : BitmapMemoryManager(PAGESIZE, false) 
 void PageFrameAllocator::init(uint32_t memoryStartAddress, uint32_t memoryEndAddress, bool doUnmap) {
     BitmapMemoryManager::init(memoryStartAddress, memoryEndAddress, false);
 
-    // read out how much memory is already used by the system and the initrd
+    // ready out how much memory is already used by the system and the initrd
     uint32_t maxIndex = (Multiboot::Structure::physReservedMemoryEnd / PAGESIZE + 1024 + 256) / 32;
 
     // first X MB are already allocated by 4MB paging

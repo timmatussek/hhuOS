@@ -67,7 +67,7 @@ private:
     // IO memory manager
     IOMemoryManager *ioMemManager{};
 
-    VirtualAddressSpace *mainAddressSpace{};
+    VirtualAddressSpace *kernelAddressSpace{};
 
     // list of all address spaces
     Util::ArrayList<VirtualAddressSpace *> *addressSpaces{};
@@ -340,6 +340,14 @@ public:
 
     PagingAreaManager *getPagingAreaManager() {
         return pagingAreaManager;
+    }
+
+    PageDirectory *getBasePageDirectory() {
+        return basePageDirectory;
+    }
+
+    VirtualAddressSpace &getKernelAddressSpace() {
+        return *kernelAddressSpace;
     }
 
     void *realloc(void *ptr, uint32_t size, uint32_t alignment = 0);

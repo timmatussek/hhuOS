@@ -32,7 +32,7 @@
  * This abstract class extends the EepromRead
  * interface.
  *
- * All read independent methods are
+ * All ready independent methods are
  * implemented here. Implementing classes have to
  * operate on the varying bit positions.
  */

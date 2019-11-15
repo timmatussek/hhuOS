@@ -17,10 +17,10 @@
 #ifndef __Kernel_include__
 #define __Kernel_include__
 
+#include <kernel/thread/KernelThread.h>
+#include "kernel/process/Process.h"
 #include "kernel/service/KernelService.h"
 #include "lib/async/Spinlock.h"
-
-#include <cstdint>
 #include "lib/string/String.h"
 #include "kernel/thread/ThreadState.h"
 #include "lib/util/HashMap.h"
@@ -80,7 +80,11 @@ public:
      */
     static void panic(InterruptFrame *frame);
 
+    static Process& getKernelProcess();
+
 private:
+
+    static Process kernelProcess;
 
     static Util::HashMap<String, KernelService *> serviceMap;
 

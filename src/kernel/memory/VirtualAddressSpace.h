@@ -32,7 +32,7 @@ namespace Kernel {
 class VirtualAddressSpace {
 private:
 
-// pointer to memory managers for userspace and kernelspace
+    // pointer to memory managers for userspace and kernelspace
     MemoryManager *kernelSpaceHeapManager = nullptr;
     MemoryManager *userSpaceHeapManager = nullptr;
     // pointer to page directory

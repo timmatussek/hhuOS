@@ -14,6 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
+#include <kernel/process/ProcessScheduler.h>
 #include "lib/graphic/Colors.h"
 #include "device/graphic/text/fonts/Fonts.h"
 #include "BuildConfig.h"
@@ -114,7 +115,8 @@ void BootScreen::drawHeapStatus(uint16_t basePosY) {
              physicalMemory / 1024);
     snprintf(heapStatusBuffers[2], BUFFER_SIZE, "IO: %d/%d KiB", usedIoMemory / 1024, ioMemory / 1024);
 
-    snprintf(activeThreadsBuffer, BUFFER_SIZE, "Active Threads: %d", Scheduler::getInstance().getThreadCount());
+    snprintf(activeProcessesBuffer, BUFFER_SIZE, "Active Processes: %d", ProcessScheduler::getInstance().getProcessCount());
+    snprintf(activeThreadsBuffer, BUFFER_SIZE, "Active Threads: %d", ProcessScheduler::getInstance().getThreadCount());
 
     lfb->drawString(*font, posX, basePosY, "Heap Status:", Colors::HHU_GRAY, Colors::INVISIBLE);
 
@@ -122,6 +124,9 @@ void BootScreen::drawHeapStatus(uint16_t basePosY) {
         lfb->drawString(*font, posX, static_cast<uint16_t>(basePosY + font->get_char_height() * (i + 1)),
                         heapStatusBuffers[i], Colors::HHU_GRAY, Colors::INVISIBLE);
     }
+
+    lfb->drawString(*font, posX, static_cast<uint16_t>(basePosY + font->get_char_height() * 4),
+                    activeProcessesBuffer, Colors::HHU_GRAY, Colors::INVISIBLE);
 
     lfb->drawString(*font, posX, static_cast<uint16_t>(basePosY + font->get_char_height() * 5),
                     activeThreadsBuffer, Colors::HHU_GRAY, Colors::INVISIBLE);
@@ -170,6 +175,9 @@ void BootScreen::init(uint16_t xres, uint16_t yres, uint8_t bpp) {
     activeThreadsBuffer = new char[BUFFER_SIZE];
     memset(activeThreadsBuffer, 0, BUFFER_SIZE);
 
+    activeProcessesBuffer = new char[BUFFER_SIZE];
+    memset(activeProcessesBuffer, 0, BUFFER_SIZE);
+
     for (auto &heapStatusBuffer : heapStatusBuffers) {
         heapStatusBuffer = new char[BUFFER_SIZE];
         memset(heapStatusBuffer, 0, BUFFER_SIZE);
@@ -177,7 +185,7 @@ void BootScreen::init(uint16_t xres, uint16_t yres, uint8_t bpp) {
 
     isRunning = true;
 
-    start();
+    // TODO: start();
 }
 
 void BootScreen::finish() {

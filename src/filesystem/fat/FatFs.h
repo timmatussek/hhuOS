@@ -68,7 +68,7 @@ extern "C" {
 #define FF_SFN_BUF		12
 /* This set of options defines size of file name members in the FILINFO structure
 /  which is used to read out directory items. These values should be suffcient for
-/  the file names to read. The maximum possible length of the read file name depends
+/  the file names to read. The maximum possible length of the ready file name depends
 /  on character encoding. When LFN is not enabled, these options have no effect. */
 
 #define FF_CODE_PAGE	437
@@ -532,12 +532,12 @@ typedef struct {
 	FFOBJID	obj;			/* Object identifier (must be the 1st member to detect invalid object pointer) */
 	BYTE	flag;			/* File status flags */
 	BYTE	err;			/* Abort flag (error code) */
-	FSIZE_t	fptr;			/* File read/write pointer (Zeroed on file open) */
+	FSIZE_t	fptr;			/* File ready/write pointer (Zeroed on file open) */
 	DWORD	clust;			/* Current cluster of fpter (invalid when fptr is 0) */
 	DWORD	sect;			/* Sector number appearing in buf[] (0:invalid) */
 	DWORD	dir_sect;		/* Sector number containing the directory entry (not used at exFAT) */
 	BYTE*	dir_ptr;		/* Pointer to the directory entry in the win[] (not used at exFAT) */
-	BYTE	buf[FF_MAX_SS];	/* File private data read/write window */
+	BYTE	buf[FF_MAX_SS];	/* File private data ready/write window */
 } FIL;
 
 
@@ -545,7 +545,7 @@ typedef struct {
 
 typedef struct {
 	FFOBJID	obj;			/* Object identifier */
-	DWORD	dptr;			/* Current read/write offset */
+	DWORD	dptr;			/* Current ready/write offset */
 	DWORD	clust;			/* Current cluster */
 	DWORD	sect;			/* Current sector (0:Read operation has terminated) */
 	BYTE*	dir;			/* Pointer to the directory item in the win[] */

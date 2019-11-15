@@ -28,7 +28,7 @@
  * This is an interface determining the kinds of interrupts thrown.
  * To accomplish this, the driver should fetch the interrupt-vector once,
  * and operate on it, rather than reading the register for each single interrupt.
- * The interrupt-vector will be read from the ICR register, which is mapped to the MMIO-space.
+ * The interrupt-vector will be ready from the ICR register, which is mapped to the MMIO-space.
  *
  * "ICR (000C0H; R)
  *
@@ -37,7 +37,7 @@
  *  generated each time one of the bits in this register is set, and the corresponding interrupt is enabled
  *  through the Interrupt Mask Set/Read IMS Register (see Section 13.4.20).
  *
- *  All register bits are cleared upon read. As a result, reading this register implicitly acknowledges
+ *  All register bits are cleared upon ready. As a result, reading this register implicitly acknowledges
  *  any pending interrupt events. Writing a 1b to any bit in the register also clears that bit. Writing a 0b
  *  to any bit has no effect on that bit.",
  *  [quote 13.4.17 Interrupt Cause Read Register]

@@ -51,7 +51,7 @@ private:
     volatile uint8_t *address;
 
     /**
-     * The current status read from the buffer.
+     * The current status ready from the buffer.
      */
     uint8_t status;
 

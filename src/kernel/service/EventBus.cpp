@@ -22,7 +22,7 @@
 
 namespace Kernel {
 
-EventBus::EventBus() : KernelThread("EventBus", 0xff), receiverMap(), scheduler(Scheduler::getInstance()) {
+EventBus::EventBus() : KernelThread("EventBus", 0xff), receiverMap() {
 
     isInitialized = true;
 }
@@ -55,7 +55,8 @@ void EventBus::subscribe(Receiver &receiver, const String &type) {
 
     lock.release();
 
-    publisher->start();
+    Kernel::System::getKernelProcess().ready(*publisher);
+    //publisher->start();
 }
 
 void EventBus::unsubscribe(Receiver &receiver, const String &type) {
@@ -73,7 +74,8 @@ void EventBus::unsubscribe(Receiver &receiver, const String &type) {
 
     EventPublisher *publisher = receiverMap.get(key);
 
-    scheduler.kill(*publisher);
+
+    Kernel::System::getKernelProcess().getScheduler().kill(*publisher);
 
     publishers.get(type)->remove(publisher);
 

@@ -22,7 +22,7 @@
 /**
  * Represents a node in the filesystem-tree.
  * When a file/folder is requested, the Filesystem-class returns a pointer to an FsNode,
- * that corresponds to the requested file/folder. It can then be used to read/write
+ * that corresponds to the requested file/folder. It can then be used to ready/write
  * to the file and get meta-information.
  */
 class FsNode {
@@ -33,7 +33,7 @@ public:
      */
     enum FileType {
         /**
-         * A normal file, that can be read from an written to.
+         * A normal file, that can be ready from an written to.
          */
         REGULAR_FILE = 0x01,
         /**
@@ -102,9 +102,9 @@ public:
      *
      * @param buf The buffer to write to (Needs to be allocated already!)
      * @param pos The offset
-     * @param numBytes The amount of bytes to read
+     * @param numBytes The amount of bytes to ready
      * 
-     * @return The amount of actually read bytes
+     * @return The amount of actually ready bytes
      */
     virtual uint64_t readData(char *buf, uint64_t pos, uint64_t numBytes) = 0;
     

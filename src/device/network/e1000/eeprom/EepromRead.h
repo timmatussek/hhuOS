@@ -31,13 +31,13 @@
  *
  * "EERD (00014h; RW)
  *
- *  This register is used by software to cause the Ethernet controller to read individual words in the
- *  EEPROM. To read a word, software writes the address to the Read Address field and simultaneously
+ *  This register is used by software to cause the Ethernet controller to ready individual words in the
+ *  EEPROM. To ready a word, software writes the address to the Read Address field and simultaneously
  *  writes a 1b to the Start Read field. The Ethernet controller reads the word from the EEPROM
  *  and places it in the Read Data field, setting the Read Done filed to 1b. Software can poll this
  *  register, looking for a 1b in the Read Done filed, and then using the value in the Read Data field.
  *
- *  When this register is used to read a word from the EEPROM, that word is not written to any of
+ *  When this register is used to ready a word from the EEPROM, that word is not written to any of
  *  Ethernet controller’s internal registers even if it is normally a hardware accessed word.",
  *  [quote 13.4.4 EEPROM Read Register]
  *
@@ -73,19 +73,19 @@ protected:
 
 private:
     /**
-     * Sets the Data-bits to 0. This is recommended before each read, to ensure
+     * Sets the Data-bits to 0. This is recommended before each ready, to ensure
      * functionality.
      */
     virtual void clearData() = 0;
 
     /**
-     * Sets the start bit to trigger read from EEPROM.
+     * Sets the start bit to trigger ready from EEPROM.
      */
     virtual void setStart() = 0;
 
     /**
      * Reads the Word from the EERD register which was fetched by
-     * the EEPROM read.
+     * the EEPROM ready.
      * @return The Word stored in Data region.
      */
     virtual uint16_t takeData() = 0;

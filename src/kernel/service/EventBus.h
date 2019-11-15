@@ -86,8 +86,6 @@ private:
 
     Spinlock lock;
 
-    Scheduler &scheduler;
-
     uint32_t registeredPublishers = 0;
 
     bool isRunning = true;

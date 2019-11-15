@@ -22,13 +22,15 @@
 #include "Symbols.h"
 #include "device/cpu/Cpu.h"
 #include "device/misc/Bios.h"
+#include "Management.h"
 
 namespace Kernel {
 
-Spinlock System::serviceLock;
+Process System::kernelProcess(Management::getInstance().getKernelAddressSpace());
 
 Util::HashMap<String, KernelService *> System::serviceMap(SERVICE_MAP_SIZE);
 
+Spinlock System::serviceLock;
 
 void System::registerService(const String &serviceId, KernelService *const &kernelService) {
 
@@ -64,6 +66,11 @@ void System::panic(InterruptFrame *frame) {
     }
 
     Cpu::halt();
+}
+
+Process& System::getKernelProcess() {
+
+    return kernelProcess;
 }
 
 }

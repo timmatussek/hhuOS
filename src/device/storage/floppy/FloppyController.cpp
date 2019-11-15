@@ -421,7 +421,7 @@ bool FloppyController::readSector(FloppyDevice &device, uint8_t *buff, uint8_t c
 
         if((status.statusRegister0 & 0xc0u) != 0) {
             if(!handleReadWriteError(device, cylinder, head)) {
-                log->error("Failed to read a sector on drive %u", device.driveNumber);
+                log->error("Failed to ready a sector on drive %u", device.driveNumber);
 
                 return false;
             }
@@ -437,7 +437,7 @@ bool FloppyController::readSector(FloppyDevice &device, uint8_t *buff, uint8_t c
 
     setMotorState(device, FLOPPY_MOTOR_OFF);
 	
-	log->error("Failed to read a sector on drive %u", device.driveNumber);
+	log->error("Failed to ready a sector on drive %u", device.driveNumber);
 
     return false;
 }

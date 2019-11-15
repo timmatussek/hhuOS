@@ -294,7 +294,7 @@ protected:
      * it ready for usage of other classes. Usually it calls the initialize
      * method of E1000 to let it process its standardized procedure of
      * setting up the card.
-     * @param dev A struct that stores main information read from pci registers
+     * @param dev A struct that stores main information ready from pci registers
      * of the ethernet card.
      */
     void setup(const Pci::Device &dev) override = 0;
@@ -311,8 +311,8 @@ protected:
      * This method handles interrupts asserted by the corresponding
      * ethernet card.
      * @param frame Interrupt-types (no need to inspect in this driver
-     * because there is the interrupt cause read register of the card, where
-     * specific asserted interrupts should be read from)
+     * because there is the interrupt cause ready register of the card, where
+     * specific asserted interrupts should be ready from)
      */
     void trigger(Kernel::InterruptFrame &frame) override = 0;
 

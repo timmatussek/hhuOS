@@ -15,6 +15,7 @@
  */
 
 #include <kernel/core/Management.h>
+#include <kernel/process/ProcessScheduler.h>
 #include "device/cpu/Cpu.h"
 #include "lib/libc/printf.h"
 #include "device/misc/Pic.h"
@@ -26,14 +27,14 @@
 namespace Kernel {
 
 extern "C" {
-    void startThread(Context *first);
+    void startFirstThread(Context *first);
     void switchContext(Context **current, Context **next);
     void setSchedInit();
     void releaseSchedulerLock();
 }
 
 void releaseSchedulerLock() {
-    Scheduler::getInstance().lock.release();
+    ProcessScheduler::getInstance().lock.release();
 }
 
 void allowPitInterrupts() {
@@ -41,15 +42,15 @@ void allowPitInterrupts() {
 }
 
 Scheduler::Scheduler(PriorityPattern &priority) : currentThread(nullptr), priority(priority), readyQueues(priority.getPriorityCount()) {
-
-    SystemCall::registerSystemCall(Standard::System::Call::SCHEDULER_YIELD, [](uint32_t paramCount, va_list params, Standard::System::Result *result) {
+    
+    /*SystemCall::registerSystemCall(Standard::System::Call::SCHEDULER_YIELD, [](uint32_t paramCount, va_list params, Standard::System::Result *result) {
         if (Scheduler::getInstance().isInitialized()) {
             Scheduler::getInstance().yield();
             result->setStatus(Standard::System::Result::OK);
         } else {
             result->setStatus(Standard::System::Result::NOT_INITIALIZED);
         }
-    });
+    });*/
 }
 
 Scheduler &Scheduler::getInstance() noexcept {
@@ -78,7 +79,7 @@ void Scheduler::startUp() {
 
     setSchedInit();
 
-    startThread(currentThread->kernelContext);
+    startFirstThread(currentThread->kernelContext);
 }
 
 void Scheduler::ready(Thread &that) {

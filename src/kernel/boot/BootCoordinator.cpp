@@ -1,3 +1,4 @@
+#include <kernel/process/ProcessScheduler.h>
 #include "lib/util/LinkedBlockingQueue.h"
 #include "BootCoordinator.h"
 
@@ -21,7 +22,7 @@ void BootCoordinator::run() {
 
     for (const auto &layer : layeredComponents) {
         for (const auto &component : *layer) {
-            component->start();
+            Kernel::ProcessScheduler::getInstance().getCurrentProcess().ready(*component);
         }
 
         for (const auto &component : *layer) {

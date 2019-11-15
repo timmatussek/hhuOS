@@ -67,6 +67,7 @@ private:
     Util::Array<String> componentNames;
 
     char *heapStatusBuffers[3];
+    char *activeProcessesBuffer;
     char *activeThreadsBuffer;
 
     MemoryManager *kernelHeapManager = nullptr;

@@ -70,7 +70,7 @@ private:
 
     static Kernel::BootScreen *bootscreen;
 
-    static Kernel::IdleThread *idleThread;
+    static Kernel::IdleThread idleThread;
 
     static uint16_t xres;
 

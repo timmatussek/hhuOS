@@ -47,14 +47,14 @@ public:
     /**
      * Read an unsigned char from the stream.
      *
-     * @param c Reference to the byte, in which the read char shall be stored
+     * @param c Reference to the byte, in which the ready char shall be stored
      */
     InputStream& operator >> (unsigned char &c);
 
     /**
      * Read a char from the stream.
      *
-     * @param c Reference to the byte, in which the read char shall be stored
+     * @param c Reference to the byte, in which the ready char shall be stored
      */
     virtual InputStream& operator >> (char &c) = 0;
 
@@ -64,7 +64,7 @@ public:
      * The given char-pointer must not be allocated.
      * The implementation should allocate the memory itself.
      *
-     * @param string Reference to the pointer, which shall point to the read string.
+     * @param string Reference to the pointer, which shall point to the ready string.
      */
     virtual InputStream& operator >> (char *&string) = 0;
 

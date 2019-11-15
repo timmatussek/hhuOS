@@ -83,7 +83,7 @@ void Mouse::activate() {
 
     // deactivate keyboard in ps2 status byte
     waitControl();
-    ctrl_port.outb(0x20);  				// 20 - read status byte from controller
+    ctrl_port.outb(0x20);  				// 20 - ready status byte from controller
     waitData();
     status = data_port.inb() & 0xFC;	// deactivate mouse and keyboard interrupts in controller
     status |= 0x10;						// deactivate keyboard too (1 means disabled)
@@ -100,7 +100,7 @@ void Mouse::activate() {
 
     // activate mouse and keyboard interrupts
     waitControl();
-    ctrl_port.outb(0x20);				// read status byte from controller
+    ctrl_port.outb(0x20);				// ready status byte from controller
     waitData();
     status = data_port.inb() | 3;		// activate mouse and keyboard interrupts (first two bits in status byte)
     status &= ~0x10;					// activate keyboard
@@ -331,7 +331,7 @@ void Mouse::cleanup() {
 
     // activate keyboard interrupts and enable keyboard
     waitControl();
-    ctrl_port.outb(0x20);				// read controller status byte
+    ctrl_port.outb(0x20);				// ready controller status byte
     waitData();
     status = data_port.inb() | 1;		// activate keyboard interrupts
     // Keyboard aktiviHTC Viveeren

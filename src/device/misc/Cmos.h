@@ -41,14 +41,14 @@ public:
      *
      * @param regNumber The register to write to (0-128)
      *
-     * @return The read value
+     * @return The ready value
      */
     static uint8_t readRegister(uint8_t regNumber);
 
     /**
      * Write to a CMOS-Register.
      *
-     * @param regNumber The register to read from (0-128)
+     * @param regNumber The register to ready from (0-128)
      * @param value The value to write
      */
     static void writeRegister(uint8_t regNumber, uint8_t value);

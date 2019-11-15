@@ -14,14 +14,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
-#include "kernel/thread/Thread.h"
-#include "kernel/thread/Scheduler.h"
 #include "Thread.h"
-
-
-#include <cstdint>
-#include <kernel/core/Management.h>
+#include "kernel/thread/Scheduler.h"
 #include "kernel/core/SystemCall.h"
+#include <kernel/process/Process.h>
+#include <kernel/process/ProcessScheduler.h>
 
 extern "C" {
     void interrupt_return();
@@ -30,9 +27,9 @@ extern "C" {
 
 void kickoff() {
 
-    Kernel::Scheduler::getInstance().getCurrentThread().run();
+    Kernel::ProcessScheduler::getInstance().getCurrentProcess().getCurrentThread().run();
 
-    Kernel::Scheduler::getInstance().exit();
+    Kernel::ProcessScheduler::getInstance().getCurrentProcess().getScheduler().exit();
 }
 
 namespace Kernel {
@@ -64,9 +61,22 @@ Thread::Thread(const String &name, uint8_t priority) : name(name) {
     id = idGenerator.getId();
 }
 
+Thread::Thread(Process &process, const String &name, uint8_t priority) : process(&process), name(name) {
+
+    auto &scheduler = process.getScheduler();
+
+    this->priority = static_cast<uint8_t>((priority > scheduler.getMaxPriority()) ? (scheduler.getMaxPriority()) : priority);
+
+    id = idGenerator.getId();
+}
+
 void Thread::start() {
 
-    Scheduler::getInstance().ready(*this);
+    if(process == nullptr) {
+        return;
+    }
+
+    process->ready(*this);
 }
 
 uint32_t Thread::getId() const {
@@ -90,7 +100,7 @@ uint8_t Thread::getPriority() const {
 }
 
 void Thread::setPriority(uint8_t priority) {
-    this->priority = Scheduler::getInstance().changePriority(*this, priority);
+    this->priority = process->getScheduler().changePriority(*this, priority);
 }
 
 void Thread::join() const {
@@ -110,10 +120,6 @@ bool Thread::hasFinished() const {
 
 InterruptFrame& Thread::getInterruptFrame() const {
     return *interruptFrame;
-}
-
-Context& Thread::getKernelContext() const {
-    return *kernelContext;
 }
 
 Thread::Stack::Stack(uint32_t size) : size(size) {

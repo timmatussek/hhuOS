@@ -45,7 +45,7 @@ protected:
     volatile uint8_t *address;
 
     /**
-     * The current errors read from the buffer.
+     * The current errors ready from the buffer.
      */
     uint8_t errors;
 

@@ -117,7 +117,7 @@ protected:
     void writeToDSP(uint8_t value);
 
     /**
-     * Directly read a byte from the Analog-to-Digital Converter (ADC).
+     * Directly ready a byte from the Analog-to-Digital Converter (ADC).
      *
      * The ADC takes microphone input and converts it to digital samples. By reading directly from the ADC, one can
      * get these samples one-by-one. However, this takes up much processing time and needs precise timing.

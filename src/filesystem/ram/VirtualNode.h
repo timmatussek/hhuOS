@@ -92,9 +92,9 @@ public:
      *
      * @param buf The buffer to write to (Needs to be allocated already!)
      * @param pos The offset
-     * @param numBytes The amount of bytes to read
+     * @param numBytes The amount of bytes to ready
      *
-     * @return The amount of actually read bytes
+     * @return The amount of actually ready bytes
      */
     virtual uint64_t readData(char *buf, uint64_t pos, uint64_t numBytes);
 

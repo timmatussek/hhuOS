@@ -1,14 +1,24 @@
 #include <lib/system/priority/AccessArrayPriorityPattern.h>
+#include <kernel/core/Management.h>
+#include <kernel/core/SystemCall.h>
 #include "ProcessScheduler.h"
-
-extern "C" {
-    extern void setSchedInit();
-}
 
 namespace Kernel {
 
-ProcessScheduler::ProcessScheduler(PriorityPattern &priorityPattern) : priorityPattern(priorityPattern), readyQueues(priorityPattern.getPriorityCount()) {
+extern "C" {
+    void setSchedInit();
+    void startFirstThread(Context *first);
+}
 
+ProcessScheduler::ProcessScheduler(PriorityPattern &priorityPattern) : priorityPattern(priorityPattern), readyQueues(priorityPattern.getPriorityCount()) {
+    SystemCall::registerSystemCall(Standard::System::Call::SCHEDULER_YIELD, [](uint32_t paramCount, va_list params, Standard::System::Result *result) {
+        if (ProcessScheduler::getInstance().isInitialized()) {
+            ProcessScheduler::getInstance().yieldThreadSafe();
+            result->setStatus(Standard::System::Result::OK);
+        } else {
+            result->setStatus(Standard::System::Result::NOT_INITIALIZED);
+        }
+    });
 }
 
 ProcessScheduler& ProcessScheduler::getInstance() noexcept {
@@ -31,6 +41,8 @@ void ProcessScheduler::startUp() {
     initialized = true;
 
     setSchedInit();
+
+    startFirstThread(currentProcess->scheduler->getNextThread()->kernelContext);
 }
 
 void ProcessScheduler::ready(Process &process) {
@@ -60,13 +72,11 @@ void ProcessScheduler::kill(Process &process) {
     lock.acquire();
 
     if (!initialized) {
-        Cpu::throwException(Cpu::Exception::ILLEGAL_STATE,
-                            "Scheduler: 'kill' called but scheduler is not initialized!");
+        Cpu::throwException(Cpu::Exception::ILLEGAL_STATE,"Scheduler: 'kill' called but scheduler is not initialized!");
     }
 
     if (process == getCurrentProcess()) {
-        Cpu::throwException(Cpu::Exception::ILLEGAL_STATE,
-                            "Scheduler: A process is trying to kill itself... Use 'exit' instead!");
+        Cpu::throwException(Cpu::Exception::ILLEGAL_STATE,"Scheduler: A process is trying to kill itself... Use 'exit' instead!");
     }
 
     readyQueues[process.getPriority()].remove(&process);
@@ -74,15 +84,32 @@ void ProcessScheduler::kill(Process &process) {
     lock.release();
 }
 
+void ProcessScheduler::onTimerInterrupt(uint64_t timestampMs) {
+    if(timestampMs - lastTimestampMs > 10) {
+        lastTimestampMs = timestampMs;
+        yieldThreadSafe();
+    } else {
+        currentProcess->yieldThread();
+    }
+}
+
 void ProcessScheduler::yield() {
+    if (!isProcessWaiting()) {
+        lock.release();
+        return;
+    }
+
+    dispatch(getNextProcess());
+}
+
+void ProcessScheduler::yieldThreadSafe() {
     if (!isProcessWaiting()) {
         return;
     }
 
-    if (lock.tryAcquire()) {
-        readyQueues[currentProcess->getPriority()].push(currentProcess);
-        dispatch(getNextProcess());
-    }
+    lock.acquire();
+
+    dispatch(getNextProcess());
 }
 
 void ProcessScheduler::dispatch(Process &next) {
@@ -91,11 +118,13 @@ void ProcessScheduler::dispatch(Process &next) {
                             "Scheduler: 'dispatch' called but scheduler is not initialized!");
     }
 
-    /*Thread *current = currentThread;
+    Thread &oldThread = currentProcess->getCurrentThread();
 
-    currentThread = &next;
+    currentProcess = &next;
 
-    switchContext(&current->context, &next.context);*/
+    Kernel::Management::getInstance().switchAddressSpace(&next.getAddressSpace());
+
+    currentProcess->scheduler->yield(oldThread);
 }
 
 Process& ProcessScheduler::getNextProcess() {
@@ -168,6 +197,18 @@ uint8_t ProcessScheduler::changePriority(Process &process, uint8_t priority) {
 
 Process& ProcessScheduler::getCurrentProcess() {
     return *currentProcess;
+}
+
+uint32_t ProcessScheduler::getThreadCount() {
+    uint32_t count = 0;
+
+    for(const auto &queue : readyQueues) {
+        for(const auto *process : queue) {
+            count += process->getScheduler().getThreadCount();
+        }
+    }
+
+    return count;
 }
 
 }

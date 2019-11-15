@@ -33,8 +33,7 @@ VirtualAddressSpace::VirtualAddressSpace(PageDirectory *basePageDirectory, uint3
     bootstrapAddressSpace = false;
 }
 
-VirtualAddressSpace::VirtualAddressSpace(PageDirectory *basePageDirectory, const String &memoryManagerType) :
-        managerType(memoryManagerType), heapAddress(2 * PAGESIZE) {
+VirtualAddressSpace::VirtualAddressSpace(PageDirectory *basePageDirectory, const String &memoryManagerType) : managerType(memoryManagerType), heapAddress(2 * PAGESIZE) {
     if(basePageDirectory == nullptr) {
         this->pageDirectory = new PageDirectory();
     } else {
@@ -58,18 +57,10 @@ VirtualAddressSpace::~VirtualAddressSpace() {
 
 void VirtualAddressSpace::init() {
     // create a new memory manager for userspace
-    if (!Management::isInitialized()) {
-        this->userSpaceHeapManager = new (reinterpret_cast<void*>(PAGESIZE)) FreeListMemoryManager();
-    } else {
+    if (Management::isInitialized()) {
         this->userSpaceHeapManager = (MemoryManager*) MemoryManager::createInstance(managerType);
-    }
-
-    if (userSpaceHeapManager != nullptr) {
         userSpaceHeapManager->init(MemoryUtil::alignUp(heapAddress, PAGESIZE), KERNEL_START - PAGESIZE, true);
     }
-
-    void *test = userSpaceHeapManager->alloc(1024);
-    userSpaceHeapManager->free(test);
 
     initialized = true;
 }

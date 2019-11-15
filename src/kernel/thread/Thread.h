@@ -17,17 +17,19 @@
 #ifndef __Thread_include__
 #define __Thread_include__
 
-#include "kernel/thread/ThreadState.h"
-
-#include <cstdint>
 #include <lib/system/IdGenerator.h>
+#include "kernel/thread/ThreadState.h"
 #include "lib/string/String.h"
 
 namespace Kernel {
 
+class Process;
+
 class Thread {
 
     friend class Scheduler;
+    friend class ThreadScheduler;
+    friend class ProcessScheduler;
 
 public:
 
@@ -57,6 +59,8 @@ protected:
 
     Thread(const String &name, uint8_t priority);
 
+    Thread(Process &process, const String &name, uint8_t priority);
+
 public:
 
     Thread(const Thread &copy) = delete;
@@ -68,8 +72,6 @@ public:
 public:
 
     InterruptFrame *interruptFrame = nullptr;
-
-    Context *kernelContext = nullptr;
 
     /**
      * Returns this Thread's thread id.
@@ -108,15 +110,17 @@ public:
 
 protected:
 
+    Context *kernelContext = nullptr;
+
     static void yield();
 
     InterruptFrame& getInterruptFrame() const;
 
-    Context& getKernelContext() const;
-
     static const uint32_t STACK_SIZE_DEFAULT = 4096;
 
 private:
+
+    Process *process = nullptr;
 
     uint32_t id;
 

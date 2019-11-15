@@ -27,7 +27,7 @@
 #include <filesystem/ram/nodes/video/CurrentResolutionNode.h>
 #include <filesystem/ram/nodes/video/CurrentGraphicsDriverNode.h>
 #include <filesystem/ram/nodes/video/GraphicsDriversNode.h>
-#include <lib/system/SimpleResult.h>
+#include <kernel/process/ProcessScheduler.h>
 #include "kernel/memory/manager/StaticHeapMemoryManager.h"
 #include "filesystem/fat/FatDriver.h"
 #include "device/graphic/vesa/VesaGraphics.h"
@@ -44,7 +44,6 @@
 #include "kernel/service/InputService.h"
 #include "device/pci/Pci.h"
 #include "filesystem/core/Filesystem.h"
-#include "application/Application.h"
 #include "kernel/thread/Scheduler.h"
 #include "device/time/Pit.h"
 #include "kernel/service/DebugService.h"
@@ -65,7 +64,6 @@
 #include "device/network/e1000/driver/intel82541IP/Intel82541IP.h"
 #include "device/network/e1000/driver/intel82540EM/Intel82540EM.h"
 #include "kernel/service/NetworkService.h"
-#include "application/shell/Shell.h"
 #include "device/port/parallel/ParallelDriver.h"
 #include "device/port/serial/SerialDriver.h"
 #include "GatesOfHell.h"
@@ -77,7 +75,7 @@ AnsiOutputStream *GatesOfHell::outputStream = nullptr;
 
 Kernel::BootScreen *GatesOfHell::bootscreen = nullptr;
 
-Kernel::IdleThread *GatesOfHell::idleThread = nullptr;
+Kernel::IdleThread GatesOfHell::idleThread;
 
 uint16_t GatesOfHell::xres = 0;
 
@@ -131,6 +129,8 @@ Kernel::BootComponent GatesOfHell::initGraphicsComponent("InitGraphicsComponent"
     if(Kernel::Multiboot::Structure::getKernelOption("splash") == "true") {
 
         bootscreen->init(xres, yres, bpp);
+
+        Kernel::System::getKernelProcess().ready(*bootscreen);
     }
 });
 
@@ -198,13 +198,13 @@ Kernel::BootCoordinator GatesOfHell::coordinator(Util::Array<Kernel::BootCompone
 
     stdout = File::open("/dev/stdout", "w");
 
-    bootscreen->finish();
+    // bootscreen->finish();
 
     Kernel::Logger::setConsoleLogging(false);
 
     delete outputStream;
 
-    Application::getInstance().start();
+    //Application::getInstance().start();
 });
 
 void GatesOfHell::enter() {
@@ -221,14 +221,12 @@ void GatesOfHell::enter() {
         coordinator.addComponent(&parsePciDatabaseComponent);
     }
 
-    idleThread = new Kernel::IdleThread();
-    idleThread->start();
+    Kernel::System::getKernelProcess().ready(idleThread);
+    Kernel::System::getKernelProcess().ready(Kernel::InterruptManager().getInstance());
+    Kernel::System::getKernelProcess().ready(coordinator);
+    Kernel::System::getKernelProcess().start();
 
-    Kernel::InterruptManager::getInstance().start();
-
-    coordinator.start();
-
-    Kernel::Scheduler::getInstance().startUp();
+    Kernel::ProcessScheduler::getInstance().startUp();
 
     Cpu::halt();
 }
@@ -269,7 +267,7 @@ void GatesOfHell::afterInitrdModHook() {
         }
 
         auto *vesaLfb = new VesaGraphics();
-        if (cgaLfb->isAvailable()) {
+        if (vesaLfb->isAvailable()) {
             log.info("Detected a VESA compatible graphics card");
             Kernel::System::getService<Kernel::GraphicsService>()->registerLinearFrameBuffer(vesaLfb);
             Kernel::System::getService<Kernel::GraphicsService>()->registerTextDriver(new VesaText());

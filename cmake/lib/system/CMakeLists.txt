@@ -20,5 +20,5 @@ target_sources(lib PUBLIC
         ${HHUOS_SRC_DIR}/lib/system/Result.cpp
         ${HHUOS_SRC_DIR}/lib/system/SimpleResult.h
         ${HHUOS_SRC_DIR}/lib/system/priority/PriorityPattern.cpp
-        ${HHUOS_SRC_DIR}/lib/system/priority/PriorityPattern.cpp
+        ${HHUOS_SRC_DIR}/lib/system/priority/SimplePriorityPattern.cpp
         ${HHUOS_SRC_DIR}/lib/system/priority/AccessArrayPriorityPattern.cpp)

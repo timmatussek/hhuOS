@@ -36,7 +36,7 @@ bool SoundBlaster::checkPort(uint16_t baseAddress) {
     bool timeout = true;
     uint32_t timeoutTime = timeService->getSystemTime() + TIMEOUT;
 
-    // Wait for read buffer to become ready
+    // Wait for ready buffer to become ready
     do {
         uint8_t status = readBufferStatusPort.inb();
 
@@ -52,7 +52,7 @@ bool SoundBlaster::checkPort(uint16_t baseAddress) {
 
     timeoutTime = timeService->getSystemTime() + TIMEOUT;
 
-    // Wait for ready code (represented by 0xaa) to appear in the read buffer
+    // Wait for ready code (represented by 0xaa) to appear in the ready buffer
     do {
         uint8_t status = readDataPort.inb();
 
@@ -211,7 +211,7 @@ bool SoundBlaster::reset() {
     bool timeout = true;
     uint32_t timeoutTime = timeService->getSystemTime() + TIMEOUT;
 
-    // Wait for read buffer to become ready
+    // Wait for ready buffer to become ready
     do {
         uint8_t status = readBufferStatusPort.inb();
 
@@ -227,7 +227,7 @@ bool SoundBlaster::reset() {
 
     timeoutTime = timeService->getSystemTime() + TIMEOUT;
 
-    // Wait for ready code (represented by 0xaa) to appear in the read buffer
+    // Wait for ready code (represented by 0xaa) to appear in the ready buffer
     do {
         uint8_t status = readDataPort.inb();
 

@@ -53,7 +53,7 @@ uint64_t StorageNode::readData(char *buf, uint64_t pos, uint64_t numBytes) {
     auto count = static_cast<uint32_t>((numBytes / sectorSize) + 2);
     uint8_t hddData[count * sectorSize];
     
-    if(!disk->read(hddData, startSector, count)) {
+    if(!disk->ready(hddData, startSector, count)) {
         return 0;
     }
 
@@ -109,7 +109,7 @@ uint64_t StorageNode::writeData(char *buf, uint64_t pos, uint64_t numBytes) {
         return 0;
     }
 
-    if(!disk->read(&hddData[(count - 1) * sectorSize], lastSector, 1)) {
+    if(!disk->ready(&hddData[(count - 1) * sectorSize], lastSector, 1)) {
         return 0;
     }
 

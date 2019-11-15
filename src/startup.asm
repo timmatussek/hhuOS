@@ -167,7 +167,7 @@ clear_bss:
     ; set stack again to cut off possible old values
     mov esp, (stack - KERNEL_START + STACK_SIZE)
 
-    ; read memory map and push parameters before
+    ; ready memory map and push parameters before
     push ebx
     mov eax, readMemoryMap
     sub eax, KERNEL_START

@@ -33,7 +33,7 @@ class FloppyDevice;
  * The floppy controller has a 16 byte FIFO buffer, which can be used to communicate with it.
  * To issue a command, one needs to write a command byte to the buffer (see enum Commands) and afterwards write
  * the command's parameters.
- * After a command has been executed, one can read the result from the fifo buffer.
+ * After a command has been executed, one can ready the result from the fifo buffer.
  */
 class FloppyController : Kernel::InterruptHandler {
 
@@ -112,7 +112,7 @@ private:
     };
 
     /**
-     * Controller status after a read-/write-command.
+     * Controller status after a ready-/write-command.
      */
     struct CommandStatus {
         uint8_t statusRegister0;
@@ -172,12 +172,12 @@ private:
     /**
      * Issue a 'sense interrupt' command and get the controller status.
      *
-     * This needs to be done, after an interrupt has occurred (except for interrupts after read-/write-commands).
+     * This needs to be done, after an interrupt has occurred (except for interrupts after ready-/write-commands).
      */
     SenseInterruptState senseInterrupt();
 
     /**
-     * Get the controller status, after a read-/write-command.
+     * Get the controller status, after a ready-/write-command.
      */
     CommandStatus readCommandStatus();
 
@@ -231,7 +231,7 @@ private:
     /**
      * Seek a specific head + cylinder.
      *
-     * This needs to be done before issuing a read-/write-command.
+     * This needs to be done before issuing a ready-/write-command.
      *
      * @param device The device
      * @param cylinder The cylinder
@@ -244,8 +244,8 @@ private:
     /**
      * Prepare a DMA-transfer via the ISA-bus.
      *
-     * This needs to be done, before issuing a read-/write-command.
-     * NOTE: If one wants to read from the floppy disk, the transfer mode needs to be set to ISA::TRANSFER_MODE_WRITE.
+     * This needs to be done, before issuing a ready-/write-command.
+     * NOTE: If one wants to ready from the floppy disk, the transfer mode needs to be set to ISA::TRANSFER_MODE_WRITE.
      *       This seems to be counter-intuitive, but makes sens, because the controller reads from the disk and
      *       WRITES to memory. For reading, the same applies vice-versa.
      *
@@ -258,7 +258,7 @@ private:
      * Read a sector from a floppy. The sector needs to be specified in the CHS-format.
      *
      * @param device The device
-     * @param buff The buffer to write the read data to
+     * @param buff The buffer to write the ready data to
      * @param cylinder The cylinder
      * @param head The head
      * @param sector The sector
@@ -281,7 +281,7 @@ private:
     bool writeSector(FloppyDevice &device, const uint8_t *buff, uint8_t cylinder, uint8_t head, uint8_t sector);
 
     /**
-     * Check if a disk is present and recalibrate the drive, after a read-/write-error has occurred.
+     * Check if a disk is present and recalibrate the drive, after a ready-/write-error has occurred.
      *
      * @param device The device
      * @param cylinder The cylinder, that has been accessed before the error occurred

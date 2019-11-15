@@ -151,12 +151,12 @@ public:
 
     /**
      * Read at most len - 1 bytes from the file and always appends a null-terminator.
-     * If a '\n' or 'EOF' character is encountered, the function returns the read string up to that point.
+     * If a '\n' or 'EOF' character is encountered, the function returns the ready string up to that point.
      *
      * @param buf The buffer to write to (Needs to be allocated already!)
-     * @param len The amount of bytes ot read. At most, len - 1 characters will be read.
+     * @param len The amount of bytes ot read. At most, len - 1 characters will be ready.
      *
-     * @return The amount of actually read bytes
+     * @return The amount of actually ready bytes
      */
     uint64_t readString(char *buf, uint64_t len);
 
@@ -164,9 +164,9 @@ public:
      * Read a given amount of bytes from the file.
      *
      * @param buf The buffer to write to (Needs to be already allocated already!)
-     * @param len The amount of bytes ot read.
+     * @param len The amount of bytes ot ready.
      *
-     * @return The amount of actually read bytes
+     * @return The amount of actually ready bytes
      */
     uint64_t readBytes(char *buf, uint64_t len);
 
@@ -176,7 +176,7 @@ public:
     uint64_t getPos();
 
     /**
-     * Set the position. This determines, which character will be read next.
+     * Set the position. This determines, which character will be ready next.
      *
      * @param offset Amount of bytes to offset from 'origin'.
      * @param origin File::START: The beginning of the file;

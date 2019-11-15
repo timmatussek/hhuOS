@@ -12,7 +12,7 @@
 ; You should have received a copy of the GNU General Public License
 ; along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-global startThread
+global startFirstThread
 global switchContext
 
 extern releaseSchedulerLock
@@ -20,7 +20,7 @@ extern flush_tss
 
 section .text
 
-startThread:
+startFirstThread:
 
     ; get the thread's context
     mov	esp, [esp + 0x04]

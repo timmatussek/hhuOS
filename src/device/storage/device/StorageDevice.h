@@ -421,9 +421,9 @@ enum SYSTEM_ID {
     /**
      * Read sectors from the device.
      *
-     * @param buff The buffer, where the read data will be stored in
+     * @param buff The buffer, where the ready data will be stored in
      * @param sector The sector number
-     * @param count The amount of sectors, that will be read
+     * @param count The amount of sectors, that will be ready
      * @return True, on success
      */
     virtual bool read(uint8_t *buff, uint32_t sector, uint32_t count) = 0;

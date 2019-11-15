@@ -645,7 +645,7 @@ private:
     * @param device   the device number.
     * @param startl   the start sector (low).
     * @param starth   the start sector (high).
-    * @param count    the number of sectors to read.
+    * @param count    the number of sectors to ready.
     * @param buf      the buffer data will be written to.
     * @return true if the operation succeeded, else false.
     */

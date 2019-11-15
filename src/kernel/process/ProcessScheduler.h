@@ -12,8 +12,6 @@ class ProcessScheduler {
 
 public:
 
-    explicit ProcessScheduler(PriorityPattern &priority);
-
     ProcessScheduler(const ProcessScheduler &copy) = delete;
 
     ProcessScheduler &operator=(const ProcessScheduler &copy) = delete;
@@ -32,7 +30,11 @@ public:
 
     bool isProcessWaiting();
 
+    Process& getCurrentProcess();
+
     uint32_t getProcessCount();
+
+    uint32_t getThreadCount();
 
     uint8_t changePriority(Process &process, uint8_t priority);
 
@@ -44,17 +46,27 @@ public:
 
 private:
 
+    friend class ThreadScheduler;
+
+    friend class TimeProvider;
+
+    explicit ProcessScheduler(PriorityPattern &priority);
+
     Process& getNextProcess();
 
-    Process& getCurrentProcess();
+    void onTimerInterrupt(uint64_t timestampMs);
 
     void yield();
+
+    void yieldThreadSafe();
 
     void dispatch(Process &next);
 
 private:
 
     bool initialized = false;
+
+    uint64_t lastTimestampMs = 0;
 
     Process *currentProcess = nullptr;
 

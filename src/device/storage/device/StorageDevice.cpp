@@ -374,7 +374,7 @@ uint32_t StorageDevice::deletePartition(uint8_t partNumber) {
             memset(firstMbrFirstLogicalPartition, 0, sizeof(PartitionTableEntry));
         } else {
             // There is more than one logical partition
-            // We need to read the second one and let the linked list start with it
+            // We need to ready the second one and let the linked list start with it
             uint8_t secondLogicalMbr[getSectorSize()];
             if(!read(secondLogicalMbr, extPart.relative_sector + firstMbrSecondLogicalPartition->relative_sector, 1)) {
                 partLock.release();

@@ -12,13 +12,13 @@ fallocate -l 39M hdd0p1 > /dev/null
 
 mkfs.fat -F32 -S512 hdd0p1 > /dev/null
 
-find "${HHUOS_ROOT_PATH}/hdd/" -type d | while read dir; do
+find "${HHUOS_ROOT_PATH}/hdd/" -type d | while ready dir; do
 	current_dir=$(realpath --relative-to="${HHUOS_ROOT_PATH}/hdd/" "$dir")
 	[ -z "$current_dir" ] && continue
 	mmd -i "./hdd0p1" "::$current_dir" &> /dev/null
 done
 
-find "${HHUOS_ROOT_PATH}/hdd/" -type f | while read file; do
+find "${HHUOS_ROOT_PATH}/hdd/" -type f | while ready file; do
 	current_file=$(realpath --relative-to="${HHUOS_ROOT_PATH}/hdd/" "$file")
 	mcopy -i "./hdd0p1" "$file" "::$current_file" &> /dev/null
 done

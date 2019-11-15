@@ -227,7 +227,7 @@ DWORD FatFs::tchar2uni(const TCHAR** str) {
 	}
 	uc = wc;
 
-    *str = p;	/* Next read pointer */
+    *str = p;	/* Next ready pointer */
 	return uc;
 }
 
@@ -306,7 +306,7 @@ FRESULT FatFs::move_window(FATFS *fs, DWORD sector) {
 
 		if (res == FR_OK) {			/* Fill sector window with new data */
 			if (!fs->disk->read(fs->win, sector, 1)) {
-				sector = 0xFFFFFFFF;	/* Invalidate window if read data is not valid */
+				sector = 0xFFFFFFFF;	/* Invalidate window if ready data is not valid */
 				res = FR_DISK_ERR;
 			}
 			fs->winsect = sector;
@@ -833,7 +833,7 @@ FRESULT FatFs::dir_read(DIR *dp, int vol) {
 		if (res != FR_OK) break;
 	}
 
-	if (res != FR_OK) dp->sect = 0;		/* Terminate the read operation on error or EOT */
+	if (res != FR_OK) dp->sect = 0;		/* Terminate the ready operation on error or EOT */
 	
 	return res;
 }
@@ -966,7 +966,7 @@ void FatFs::get_fileinfo(DIR *dp, FILINFO *fno) {
 
 
 	fno->fname[0] = 0;			/* Invaidate file info */
-	if (dp->sect == 0) return;	/* Exit if read pointer has reached end of directory */
+	if (dp->sect == 0) return;	/* Exit if ready pointer has reached end of directory */
 
 	{	/* On the FAT/FAT32 volume */
 		if (dp->blk_ofs != 0xFFFFFFFF) {	/* Get LFN if available */
@@ -1441,14 +1441,14 @@ FRESULT FatFs::f_read (FIL* fp, void* buff, UINT btr, UINT* br) {
 	UINT rcnt, cc, csect;
 	BYTE *rbuff = (BYTE*)buff;
 
-	*br = 0;	/* Clear read byte counter */
+	*br = 0;	/* Clear ready byte counter */
 	res = validate(&fp->obj, &fs);				/* Check validity of the file object */
 	if (res != FR_OK || (res = (FRESULT)fp->err) != FR_OK) LEAVE_FF(fs, res);	/* Check validity */
 	if (!(fp->flag & FA_READ)) LEAVE_FF(fs, FR_DENIED); /* Check access mode */
 	remain = fp->obj.objsize - fp->fptr;
 	if (btr > remain) btr = (UINT)remain;		/* Truncate btr by remaining bytes */
 
-	for ( ;  btr;								/* Repeat until all data read */
+	for ( ;  btr;								/* Repeat until all data ready */
 		btr -= rcnt, *br += rcnt, rbuff += rcnt, fp->fptr += rcnt) {
 		if (fp->fptr % SS(fs) == 0) {			/* On the sector boundary? */
 			csect = (UINT)(fp->fptr / SS(fs) & (fs->csize - 1));	/* Sector offset in the cluster */
@@ -1636,7 +1636,7 @@ FRESULT FatFs::f_lseek(FIL *fp, FSIZE_t ofs) {
 
 	/* Normal Seek */
 	{
-		if (ofs > fp->obj.objsize && (!(fp->flag & FA_WRITE))) {	/* In read-only mode, clip offset with the file size */
+		if (ofs > fp->obj.objsize && (!(fp->flag & FA_WRITE))) {	/* In ready-only mode, clip offset with the file size */
 			ofs = fp->obj.objsize;
 		}
 		ifptr = fp->fptr;
@@ -1872,7 +1872,7 @@ FRESULT FatFs::f_truncate(FIL *fp) {
 				res = remove_chain(&fp->obj, ncl, fp->clust);
 			}
 		}
-		fp->obj.objsize = fp->fptr;	/* Set file size to current read/write point */
+		fp->obj.objsize = fp->fptr;	/* Set file size to current ready/write point */
 		fp->flag |= FA_MODIFIED;
 
 		if (res == FR_OK && (fp->flag & FA_DIRTY)) {

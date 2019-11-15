@@ -61,7 +61,7 @@ public:
     /**
      * Read the MAC-address into a given buffer.
      *
-     * @param buf The buffer to read the MAC-address into.
+     * @param buf The buffer to ready the MAC-address into.
      */
     virtual void getMacAddress(uint8_t *buf) = 0;
 
