@@ -25,11 +25,11 @@ class UserThread : public Thread {
 
 public:
 
-    UserThread();
+    explicit UserThread(Process &process);
 
-    explicit UserThread(const String &name);
+    UserThread(Process &process, const String &name);
 
-    UserThread(const String &name, uint8_t priority);
+    UserThread(Process &process, const String &name, uint8_t priority);
 
     UserThread(const Thread &copy) = delete;
 

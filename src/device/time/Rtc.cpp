@@ -16,7 +16,6 @@
 
 #include "device/misc/Pic.h"
 #include "kernel/service/TimeService.h"
-#include "kernel/thread/Scheduler.h"
 #include "kernel/interrupt/InterruptDispatcher.h"
 #include "device/misc/Cmos.h"
 #include "Rtc.h"

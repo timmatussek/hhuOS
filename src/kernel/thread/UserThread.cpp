@@ -24,15 +24,15 @@ void kickoff();
 namespace Kernel {
 
 
-UserThread::UserThread() : Thread(), kernelStack(STACK_SIZE_DEFAULT), userStack(STACK_SIZE_DEFAULT) {
+UserThread::UserThread(Process &process) : Thread(process), kernelStack(STACK_SIZE_DEFAULT), userStack(STACK_SIZE_DEFAULT) {
     init();
 }
 
-UserThread::UserThread(const String &name) : Thread(name), kernelStack(STACK_SIZE_DEFAULT), userStack(STACK_SIZE_DEFAULT) {
+UserThread::UserThread(Process &process, const String &name) : Thread(process), kernelStack(STACK_SIZE_DEFAULT), userStack(STACK_SIZE_DEFAULT) {
     init();
 }
 
-UserThread::UserThread(const String &name, uint8_t priority) : Thread(name, priority), kernelStack(STACK_SIZE_DEFAULT), userStack(STACK_SIZE_DEFAULT) {
+UserThread::UserThread(Process &process, const String &name, uint8_t priority) : Thread(process, name, priority), kernelStack(STACK_SIZE_DEFAULT), userStack(STACK_SIZE_DEFAULT) {
     init();
 }
 

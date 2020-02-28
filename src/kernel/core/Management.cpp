@@ -254,6 +254,7 @@ void Management::init() {
     kernelAddressSpace = currentAddressSpace;
     
     Kernel::ProcessScheduler::getInstance();
+    Kernel::System::getKernelProcess();
 
     // Initialize global objects afterwards, because now missing pages can be mapped
     _init();

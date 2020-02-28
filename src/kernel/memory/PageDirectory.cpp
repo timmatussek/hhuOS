@@ -78,9 +78,9 @@ PageDirectory::PageDirectory() {
         uint32_t physAddr = i * PAGESIZE;
         // build up entry for page table by hand (Read/Write and Present bit)
         *((uint32_t *) virtTableAddresses[idx] + i) = physAddr | PAGE_READ_WRITE | PAGE_PRESENT | PAGE_ACCESS_ALL;
-        // protect kernel code
+        // forbid unmapping of kernel code
         if (i < reservedMemoryEnd / PAGESIZE) {
-            *((uint32_t *) virtTableAddresses[idx] + i) |= PAGE_WRITE_PROTECTED;
+            *((uint32_t *) virtTableAddresses[idx] + i) |= PAGE_UNMAP_PROTECTED;
         }
     }
 
@@ -89,7 +89,7 @@ PageDirectory::PageDirectory() {
     for (uint32_t i = 0; i < 258; i++) {
         uint32_t physAddr = reservedMemoryEnd + PAGESIZE * 1024 + i * PAGESIZE;
         // write entry for mapping into pagetable
-        *((uint32_t *) virtTableAddresses[idx] + i) = physAddr | PAGE_PRESENT | PAGE_READ_WRITE | PAGE_WRITE_PROTECTED;
+        *((uint32_t *) virtTableAddresses[idx] + i) = physAddr | PAGE_PRESENT | PAGE_READ_WRITE | PAGE_UNMAP_PROTECTED;
     }
 
     // now, all important mappings in kernelspace (> KERNEL_START) are set up
@@ -167,10 +167,7 @@ void PageDirectory::writeProtectKernelCode() {
     uint32_t writeProtectedStart = (((uint32_t) ___WRITE_PROTECTED_START__) - KERNEL_START) / PAGESIZE;
     uint32_t writeProtectedEnd = (((uint32_t) ___WRITE_PROTECTED_END__) - KERNEL_START) / PAGESIZE;
 
-    uint32_t startIndex = writeProtectedStart / PAGESIZE;
-    uint32_t endIndex = writeProtectedEnd / PAGESIZE;
-
-    for (uint32_t i = startIndex; i < endIndex; i++) {
+    for (uint32_t i = writeProtectedStart; i < writeProtectedEnd; i++) {
         *((uint32_t *) virtTableAddresses[idx] + i) &= ~PAGE_READ_WRITE;
     }
 }
@@ -227,7 +224,7 @@ uint32_t PageDirectory::unmap(uint32_t virtAddress) {
     uint32_t *vTableAddress = (uint32_t *) virtTableAddresses[pd_idx];
 
     // do not unmap if page is protected
-    if (vTableAddress[pt_idx] & PAGE_WRITE_PROTECTED) {
+    if (vTableAddress[pt_idx] & PAGE_UNMAP_PROTECTED) {
 #if DEBUG_PD
         printf("[PAGEDIRECTORY] Unmap not possible - page is protected\n");
 #endif
@@ -307,7 +304,7 @@ void PageDirectory::protectPage(uint32_t virtAddress) {
     // calculate virtual address of page table
     uint32_t *vTableAddress = (uint32_t *) virtTableAddresses[pd_idx];
     // set protected bit in corresponding entry
-    vTableAddress[pt_idx] |= PAGE_WRITE_PROTECTED;
+    vTableAddress[pt_idx] |= PAGE_UNMAP_PROTECTED;
 }
 
 /**
@@ -354,7 +351,7 @@ void PageDirectory::unprotectPage(uint32_t virtAddress) {
     // calculate virtual address of page table
     uint32_t *vTableAddress = (uint32_t *) virtTableAddresses[pd_idx];
     // clean protected bit in corresponding entry
-    vTableAddress[pt_idx] &= ~PAGE_WRITE_PROTECTED;
+    vTableAddress[pt_idx] &= ~PAGE_UNMAP_PROTECTED;
 }
 
 /**

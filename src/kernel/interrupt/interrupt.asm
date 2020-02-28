@@ -24,7 +24,6 @@
 global bios_call
 global setup_idt
 global interrupt_return
-global setSchedInit
 global onException
 global idt
 
@@ -37,6 +36,7 @@ extern stack
 extern enable_interrupts
 extern disable_interrupts
 extern setTssStackEntry
+extern getSchedInit
 
 
 [SECTION .text]
@@ -69,8 +69,8 @@ bios_call:
 
 	; check if scheduler is started (we have to switch the stack then,
 	; because bios calls expext the stack to be placed at 4mb)
-    mov ebx, [schedInit]
-    cmp ebx, 0
+	call getSchedInit
+    cmp eax, 0
     je skipStackSwitch
 
 	; switch stack to startup stack used in startup.asm and save current stack pointer
@@ -157,8 +157,8 @@ bios_call4:
     pop ecx
     mov cr3, ecx
 	; check if scheduler is active -> old stack has to be restored then
-    mov ebx, [schedInit]
-    cmp ebx, 0
+	call getSchedInit
+    cmp eax, 0
     je skipStackSwitch2
 	; restore old stack if necessary
     pop esp
@@ -173,11 +173,6 @@ skipStackSwitch2:
     popfd
 	; load old IDT
     lidt	[idt_descr]
-    ret
-
-; is called when scheduler starts
-setSchedInit:
-    mov dword [schedInit], 0x1
     ret
 
 ;
@@ -321,7 +316,3 @@ idt:
 idt_entry i
 %assign i i+1
 %endrep
-
-; status of scheduler
-schedInit:
-    dw 0

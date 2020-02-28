@@ -84,8 +84,6 @@ public:
 
 private:
 
-    static Process kernelProcess;
-
     static Util::HashMap<String, KernelService *> serviceMap;
 
     static Spinlock serviceLock;

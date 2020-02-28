@@ -46,6 +46,8 @@ public:
 
     [[noreturn]] static void enter();
 
+    static void onBootFinished();
+
 private:
 
     static void registerServices();
@@ -66,17 +68,19 @@ private:
 
     static Kernel::Logger &log;
 
-    static AnsiOutputStream *outputStream;
-
-    static Kernel::BootScreen *bootscreen;
-
-    static Kernel::IdleThread idleThread;
-
     static uint16_t xres;
 
     static uint16_t yres;
 
     static uint8_t bpp;
+
+    static AnsiOutputStream *outputStream;
+
+    static Kernel::BootScreen *bootScreen;
+
+    static Kernel::IdleThread idleThread;
+
+    static Kernel::BootCoordinator coordinator;
 
     static Kernel::BootComponent initBiosComponent;
 
@@ -93,8 +97,6 @@ private:
     static Kernel::BootComponent scanPciBusComponent;
 
     static Kernel::BootComponent parsePciDatabaseComponent;
-
-    static Kernel::BootCoordinator coordinator;
 };
 
 

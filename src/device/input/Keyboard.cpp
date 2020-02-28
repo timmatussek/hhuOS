@@ -18,9 +18,6 @@
 #include "kernel/interrupt/InterruptDispatcher.h"
 #include "device/misc/Pic.h"
 #include "kernel/event/input/KeyEvent.h"
-#include "lib/libc/printf.h"
-#include "device/sound/PcSpeaker.h"
-#include "kernel/thread/Scheduler.h"
 #include "kernel/interrupt/InterruptManager.h"
 #include "Keyboard.h"
 

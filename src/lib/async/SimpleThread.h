@@ -2,8 +2,10 @@
 #define HHUOS_SIMPLETHREAD_H
 
 #include "kernel/thread/KernelThread.h"
+#include "kernel/thread/UserThread.h"
 
-class SimpleThread : public Kernel::KernelThread {
+template <typename  T>
+class SimpleThread : public T {
 
 public:
 
@@ -15,5 +17,8 @@ private:
 
     void (*work)();
 };
+
+template class SimpleThread<Kernel::KernelThread>;
+// template class SimpleThread<Kernel::UserThread>;
 
 #endif

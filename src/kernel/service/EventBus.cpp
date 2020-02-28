@@ -17,7 +17,6 @@
 #include "device/graphic/lfb/LinearFrameBuffer.h"
 #include "kernel/core/System.h"
 #include "lib/util/Pair.h"
-#include "kernel/thread/Scheduler.h"
 #include "EventBus.h"
 
 namespace Kernel {
@@ -55,8 +54,7 @@ void EventBus::subscribe(Receiver &receiver, const String &type) {
 
     lock.release();
 
-    Kernel::System::getKernelProcess().ready(*publisher);
-    //publisher->start();
+    publisher->start();
 }
 
 void EventBus::unsubscribe(Receiver &receiver, const String &type) {

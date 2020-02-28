@@ -26,8 +26,6 @@
 
 namespace Kernel {
 
-Process System::kernelProcess(Management::getInstance().getKernelAddressSpace());
-
 Util::HashMap<String, KernelService *> System::serviceMap(SERVICE_MAP_SIZE);
 
 Spinlock System::serviceLock;
@@ -69,6 +67,8 @@ void System::panic(InterruptFrame *frame) {
 }
 
 Process& System::getKernelProcess() {
+
+    static Process kernelProcess(Management::getInstance().getKernelAddressSpace());
 
     return kernelProcess;
 }

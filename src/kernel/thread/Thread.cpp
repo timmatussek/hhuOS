@@ -15,7 +15,6 @@
  */
 
 #include "Thread.h"
-#include "kernel/thread/Scheduler.h"
 #include "kernel/core/SystemCall.h"
 #include <kernel/process/Process.h>
 #include <kernel/process/ProcessScheduler.h>
@@ -36,36 +35,25 @@ namespace Kernel {
 
 IdGenerator Thread::idGenerator;
 
-Thread::Thread() {
+Thread::Thread(Process &process) : process(&process) {
 
-    priority = static_cast<uint8_t>(Scheduler::getInstance().getMaxPriority() / 2);
+    priority = static_cast<uint8_t>(process.getScheduler().getMaxPriority() / 2);
 
     id = idGenerator.getId();
 
     name = String::format("Thread-%u", id);
 }
 
-Thread::Thread(const String &name) : name(name) {
+Thread::Thread(Process &process, const String &name) : process(&process), name(name) {
 
-    priority = static_cast<uint8_t>(Scheduler::getInstance().getMaxPriority() / 2);
-
-    id = idGenerator.getId();
-}
-
-Thread::Thread(const String &name, uint8_t priority) : name(name) {
-
-    Scheduler &scheduler = Scheduler::getInstance();
-
-    this->priority = static_cast<uint8_t>((priority > scheduler.getMaxPriority()) ? (scheduler.getMaxPriority()) : priority);
+    priority = static_cast<uint8_t>(process.getScheduler().getMaxPriority() / 2);
 
     id = idGenerator.getId();
 }
 
 Thread::Thread(Process &process, const String &name, uint8_t priority) : process(&process), name(name) {
 
-    auto &scheduler = process.getScheduler();
-
-    this->priority = static_cast<uint8_t>((priority > scheduler.getMaxPriority()) ? (scheduler.getMaxPriority()) : priority);
+    this->priority = static_cast<uint8_t>((priority > process.getScheduler().getMaxPriority()) ? (process.getScheduler().getMaxPriority()) : priority);
 
     id = idGenerator.getId();
 }

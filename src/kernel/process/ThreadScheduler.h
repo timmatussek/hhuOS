@@ -43,11 +43,9 @@ public:
     void kill(Thread &that);
 
     /**
-     * Indicates if a Thread is waiting for execution.
-     *
-     * @return true, if a Thread is waiting, false else
+     * Blocks the current Thread.
      */
-    bool isThreadWaiting();
+    void block();
 
     /**
      * Unblocks a specific Thread.
@@ -72,23 +70,22 @@ public:
 
     uint8_t changePriority(Thread &thread, uint8_t priority);
 
-    Thread *getNextThread();
+    Thread *getNextThread(bool tryLock = false);
 
     uint8_t getMaxPriority();
+
+    Spinlock lock;
 
 private:
 
     /**
-     * Blocks the current Thread.
+     * Indicates if a Thread is waiting for execution.
+     *
+     * @return true, if a Thread is waiting, false else
      */
-    void block();
+    bool isThreadWaiting();
 
-    /**
-     * Switches to the next Thread.
-     */
-    void yield();
-
-    void yield(Thread& oldThread);
+    void yield(Thread &oldThread, Process &nextProcess, bool tryLock);
 
     /**
      * Switches to the given Thread.
@@ -102,8 +99,6 @@ private:
     Thread *currentThread;
 
     PriorityPattern &priority;
-
-    Spinlock lock;
 
     Util::Array<Util::ArrayBlockingQueue<Thread *>> readyQueues;
 };

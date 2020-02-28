@@ -1,5 +1,4 @@
 #include <lib/system/priority/AccessArrayPriorityPattern.h>
-#include <kernel/core/Management.h>
 #include <kernel/core/SystemCall.h>
 #include "ProcessScheduler.h"
 
@@ -7,13 +6,33 @@ namespace Kernel {
 
 extern "C" {
     void setSchedInit();
+    uint32_t getSchedInit();
     void startFirstThread(Context *first);
+    void releaseSchedulerLock();
+}
+
+void setSchedInit() {
+    Kernel::ProcessScheduler::getInstance().setInitialized();
+}
+
+uint32_t getSchedInit() {
+    return Kernel::ProcessScheduler::getInstance().isInitialized();
+}
+
+void releaseSchedulerLock() {
+    Kernel::ProcessScheduler::getInstance().lock.release();
 }
 
 ProcessScheduler::ProcessScheduler(PriorityPattern &priorityPattern) : priorityPattern(priorityPattern), readyQueues(priorityPattern.getPriorityCount()) {
     SystemCall::registerSystemCall(Standard::System::Call::SCHEDULER_YIELD, [](uint32_t paramCount, va_list params, Standard::System::Result *result) {
         if (ProcessScheduler::getInstance().isInitialized()) {
-            ProcessScheduler::getInstance().yieldThreadSafe();
+            bool tryLock = false;
+
+            if (paramCount > 0) {
+                tryLock = va_arg(params, int) == 0 ? false : true;
+            }
+
+            ProcessScheduler::getInstance().yield(tryLock);
             result->setStatus(Standard::System::Result::OK);
         } else {
             result->setStatus(Standard::System::Result::NOT_INITIALIZED);
@@ -29,7 +48,7 @@ ProcessScheduler& ProcessScheduler::getInstance() noexcept {
     return instance;
 }
 
-void ProcessScheduler::startUp() {
+void ProcessScheduler::start() {
     lock.acquire();
 
     if (!isProcessWaiting()) {
@@ -37,10 +56,6 @@ void ProcessScheduler::startUp() {
     }
 
     currentProcess = &getNextProcess();
-
-    initialized = true;
-
-    setSchedInit();
 
     startFirstThread(currentProcess->scheduler->getNextThread()->kernelContext);
 }
@@ -65,7 +80,7 @@ void ProcessScheduler::exit() {
         Cpu::throwException(Cpu::Exception::ILLEGAL_STATE, "Scheduler: No process is waiting to be scheduled!");
     }
 
-    dispatch(getNextProcess());
+    dispatch(getNextProcess(), false);
 }
 
 void ProcessScheduler::kill(Process &process) {
@@ -84,35 +99,28 @@ void ProcessScheduler::kill(Process &process) {
     lock.release();
 }
 
-void ProcessScheduler::onTimerInterrupt(uint64_t timestampMs) {
-    if(timestampMs - lastTimestampMs > 10) {
-        lastTimestampMs = timestampMs;
-        yieldThreadSafe();
-    } else {
-        currentProcess->yieldThread();
-    }
-}
-
-void ProcessScheduler::yield() {
+void ProcessScheduler::yieldFromThreadScheduler(bool tryLock) {
     if (!isProcessWaiting()) {
         lock.release();
         return;
     }
 
-    dispatch(getNextProcess());
+    dispatch(getNextProcess(), tryLock);
 }
 
-void ProcessScheduler::yieldThreadSafe() {
+void ProcessScheduler::yield(bool tryLock) {
     if (!isProcessWaiting()) {
-        return;
+        Cpu::throwException(Cpu::Exception::ILLEGAL_STATE, "No process is running!");
     }
 
-    lock.acquire();
-
-    dispatch(getNextProcess());
+    if(lock.tryAcquire()) {
+        dispatch(getNextProcess(), tryLock);
+    } else {
+        return;
+    }
 }
 
-void ProcessScheduler::dispatch(Process &next) {
+void ProcessScheduler::dispatch(Process &next, bool tryLock) {
     if (!initialized) {
         Cpu::throwException(Cpu::Exception::ILLEGAL_STATE,
                             "Scheduler: 'dispatch' called but scheduler is not initialized!");
@@ -120,11 +128,7 @@ void ProcessScheduler::dispatch(Process &next) {
 
     Thread &oldThread = currentProcess->getCurrentThread();
 
-    currentProcess = &next;
-
-    Kernel::Management::getInstance().switchAddressSpace(&next.getAddressSpace());
-
-    currentProcess->scheduler->yield(oldThread);
+    next.scheduler->yield(oldThread, next, tryLock);
 }
 
 Process& ProcessScheduler::getNextProcess() {
@@ -145,7 +149,11 @@ Process& ProcessScheduler::getNextProcess() {
     return *next;
 }
 
-bool ProcessScheduler::isInitialized() {
+void ProcessScheduler::setInitialized() {
+    initialized = 0x123456;
+}
+
+uint32_t ProcessScheduler::isInitialized() const {
     return initialized;
 }
 
@@ -197,6 +205,10 @@ uint8_t ProcessScheduler::changePriority(Process &process, uint8_t priority) {
 
 Process& ProcessScheduler::getCurrentProcess() {
     return *currentProcess;
+}
+
+void ProcessScheduler::setCurrentProcess(Process &process) {
+    this->currentProcess = &process;
 }
 
 uint32_t ProcessScheduler::getThreadCount() {

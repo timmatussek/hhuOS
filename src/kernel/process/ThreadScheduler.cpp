@@ -1,3 +1,4 @@
+#include <kernel/core/Management.h>
 #include "ThreadScheduler.h"
 #include "ProcessScheduler.h"
 
@@ -40,7 +41,7 @@ void ThreadScheduler::exit() {
 
     lock.release();
 
-    dispatch(*currentThread, *getNextThread());
+    ProcessScheduler::getInstance().yield(false);
 }
 
 void ThreadScheduler::kill(Thread &that) {
@@ -60,24 +61,37 @@ void ThreadScheduler::kill(Thread &that) {
     that.finished = true;
 }
 
-void ThreadScheduler::yield() {
+void ThreadScheduler::yield(Thread &oldThread, Process &nextProcess, bool tryLock) {
 
-    if (!isThreadWaiting()) {
-
-        ProcessScheduler::getInstance().yield();
+    if (tryLock) {
+        if (!lock.tryAcquire()) {
+            ProcessScheduler::getInstance().lock.release();
+            return;
+        }
+    } else {
+        lock.acquire();
     }
 
-    yield(*currentThread);
-}
+    Thread &nextThread = *getNextThread();
 
-void ThreadScheduler::yield(Thread &oldThread) {
+    lock.release();
 
-    dispatch(oldThread, *getNextThread());
+    Kernel::Management::getInstance().switchAddressSpace(&nextProcess.getAddressSpace());
+
+    Kernel::ProcessScheduler::getInstance().setCurrentProcess(nextProcess);
+
+    dispatch(oldThread, nextThread);
 }
 
 void ThreadScheduler::block() {
 
-    dispatch(*currentThread, *getNextThread());
+    lock.acquire();
+
+    readyQueues[currentThread->getPriority()].remove(currentThread);
+
+    lock.release();
+
+    ProcessScheduler::getInstance().yield(false);
 }
 
 void ThreadScheduler::deblock(Thread &that) {
@@ -100,13 +114,14 @@ Thread &ThreadScheduler::getCurrentThread() {
     return *currentThread;
 }
 
-Thread *ThreadScheduler::getNextThread() {
+Thread *ThreadScheduler::getNextThread(bool tryLock) {
 
     if (!isThreadWaiting()) {
-        ProcessScheduler::getInstance().exit();
-    }
 
-    lock.acquire();
+        lock.release();
+
+        ProcessScheduler::getInstance().yieldFromThreadScheduler(tryLock);
+    }
 
     Util::ArrayBlockingQueue<Thread *> *currentQueue = &readyQueues[priority.getNextPriority()];
 
@@ -117,8 +132,6 @@ Thread *ThreadScheduler::getNextThread() {
     Thread *ret = currentQueue->pop();
 
     currentQueue->push(ret);
-
-    lock.release();
 
     return ret;
 }

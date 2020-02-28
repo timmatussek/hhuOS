@@ -1,5 +1,6 @@
 #include <kernel/process/ProcessScheduler.h>
 #include "lib/util/LinkedBlockingQueue.h"
+#include "BootScreen.h"
 #include "BootCoordinator.h"
 
 namespace Kernel {
@@ -22,11 +23,15 @@ void BootCoordinator::run() {
 
     for (const auto &layer : layeredComponents) {
         for (const auto &component : *layer) {
-            Kernel::ProcessScheduler::getInstance().getCurrentProcess().ready(*component);
+            component->start();
         }
 
         for (const auto &component : *layer) {
             component->join();
+
+            if (bootScreen != nullptr) {
+                bootScreen->refresh();
+            }
         }
 
         delete layer;
@@ -74,6 +79,10 @@ void BootCoordinator::buildComponentLayers() {
             components.add(component);
         }
     }
+}
+
+void BootCoordinator::registerBootScreen(BootScreen *bootScreen) {
+    this->bootScreen = bootScreen;
 }
 
 }

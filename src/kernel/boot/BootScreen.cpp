@@ -22,7 +22,6 @@
 #include "kernel/service/GraphicsService.h"
 #include "kernel/service/TimeService.h"
 #include "kernel/core/Management.h"
-#include "kernel/thread/Scheduler.h"
 #include "lib/libc/snprintf.h"
 #include "BootScreen.h"
 #include "kernel/core/System.h"
@@ -33,7 +32,7 @@ auto versionString = String::format("hhuOS %s - git %s (%s)", BuildConfig::getVe
                                     BuildConfig::getGitBranch());
 auto buildDate = String::format("Build date: %s", BuildConfig::getBuildDate());
 
-BootScreen::BootScreen(BootCoordinator &coordinator) : coordinator(coordinator), components(0), componentNames(0) {
+BootScreen::BootScreen(BootCoordinator &coordinator) : KernelThread("Bootscreen"), coordinator(coordinator), components(0), componentNames(0) {
 
     lfb = System::getService<GraphicsService>()->getLinearFrameBuffer();
 
@@ -184,8 +183,6 @@ void BootScreen::init(uint16_t xres, uint16_t yres, uint8_t bpp) {
     }
 
     isRunning = true;
-
-    // TODO: start();
 }
 
 void BootScreen::finish() {
@@ -214,6 +211,10 @@ void BootScreen::run() {
 
         timeService->msleep(250);
     }
+}
+
+void BootScreen::refresh() {
+    drawScreen();
 }
 
 }

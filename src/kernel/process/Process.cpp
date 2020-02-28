@@ -5,6 +5,7 @@
 #include <lib/math/Random.h>
 #include <kernel/multiboot/Structure.h>
 #include <device/graphic/lfb/LinearFrameBuffer.h>
+#include <kernel/thread/ApplicationMainThread.h>
 #include "Process.h"
 #include "ProcessScheduler.h"
 
@@ -44,16 +45,20 @@ Process::Process(Kernel::VirtualAddressSpace &addressSpace) : id(idGenerator.get
     }*/
 }
 
-Process *Process::loadExecutable(const String &path) {
+void Process::loadExecutable(const String &path) {
     auto elf = Elf::load(path);
 
     if (elf == nullptr) {
-        return nullptr;
+        Cpu::throwException(Cpu::Exception::INVALID_ARGUMENT, "Unable to load elf file!");
     }
 
     auto addressSpace = Kernel::Management::getInstance().createAddressSpace(elf->getSizeInMemory(),"FreeListMemoryManager");
 
-    return new Process(*addressSpace);
+    auto process = new Process(*addressSpace);
+
+    process->getScheduler().ready(*new ApplicationMainThread(*process, elf->getEntryPoint(), 0, nullptr));
+
+    Kernel::ProcessScheduler::getInstance().ready(*process);
 }
 
 uint8_t Process::getPriority() const {
@@ -76,9 +81,9 @@ Kernel::Thread &Process::getCurrentThread() const {
     return scheduler->getCurrentThread();
 }
 
-void Process::yieldThread() {
+/*void Process::yieldThread() {
     scheduler->yield();
-}
+}*/
 
 void Process::ready(Thread &thread) {
     scheduler->ready(thread);

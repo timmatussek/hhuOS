@@ -53,11 +53,9 @@ public:
 
 protected:
 
-    Thread();
+    explicit Thread(Process &process);
 
-    explicit Thread(const String &name);
-
-    Thread(const String &name, uint8_t priority);
+    Thread(Process &process, const String &name);
 
     Thread(Process &process, const String &name, uint8_t priority);
 

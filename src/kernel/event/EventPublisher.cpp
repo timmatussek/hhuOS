@@ -10,7 +10,6 @@
  */
 
 #include "lib/util/SmartPointer.h"
-#include "kernel/thread/Scheduler.h"
 #include "EventPublisher.h"
 
 namespace Kernel {

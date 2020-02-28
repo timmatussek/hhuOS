@@ -14,7 +14,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
-#include "kernel/thread/Scheduler.h"
 #include "kernel/core/SystemCall.h"
 #include "TimeService.h"
 

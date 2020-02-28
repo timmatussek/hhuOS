@@ -17,7 +17,6 @@
 #include "kernel/core/System.h"
 #include "kernel/interrupt/InterruptDispatcher.h"
 #include "device/misc/Pic.h"
-#include "kernel/thread/Scheduler.h"
 #include "Pit.h"
 
 IoPort control(0x43);
@@ -71,7 +70,7 @@ void Pit::trigger(Kernel::InterruptFrame &frame) {
     if ((time.fraction % DEFAULT_YIELD_INTERVAL) == 0) {
 
         Standard::System::Result result{};
-        Standard::System::Call::execute(Standard::System::Call::SCHEDULER_YIELD, result, 0);
+        Standard::System::Call::execute(Standard::System::Call::SCHEDULER_YIELD, result, 1, 1);
     }
 }
 

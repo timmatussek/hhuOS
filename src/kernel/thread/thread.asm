@@ -16,6 +16,7 @@ global startFirstThread
 global switchContext
 
 extern releaseSchedulerLock
+extern setSchedInit
 extern flush_tss
 
 section .text
@@ -34,6 +35,8 @@ startFirstThread:
     call flush_tss
 
     call releaseSchedulerLock
+
+    call setSchedInit
 
     ; start thread
     ret

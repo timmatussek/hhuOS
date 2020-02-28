@@ -16,7 +16,6 @@
 
 #include "FloppyDevice.h"
 #include "FloppyMotorControlThread.h"
-#include "kernel/thread/Scheduler.h"
 
 extern "C" {
 #include "lib/libc/math.h"

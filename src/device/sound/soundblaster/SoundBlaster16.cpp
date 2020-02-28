@@ -18,7 +18,6 @@
 #include "kernel/core/Management.h"
 #include "kernel/interrupt/InterruptDispatcher.h"
 #include "device/misc/Pic.h"
-#include "kernel/thread/Scheduler.h"
 #include "SoundBlaster16.h"
 
 SoundBlaster16::SoundBlaster16(uint16_t baseAddress, uint8_t irqNumber, uint8_t dmaChannel8, uint8_t dmaChannel16)

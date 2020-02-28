@@ -25,7 +25,7 @@ private:
 
 public:
 
-    static Process *loadExecutable(const String &path);
+    static void loadExecutable(const String &path);
 
     explicit Process(Kernel::VirtualAddressSpace &addressSpace);
 
@@ -53,7 +53,7 @@ public:
 
 private:
 
-    void yieldThread();
+    // void yieldThread();
 };
 
 }

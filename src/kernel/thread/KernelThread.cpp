@@ -14,6 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
+#include <kernel/core/System.h>
 #include "KernelThread.h"
 
 extern "C" {
@@ -24,15 +25,15 @@ extern "C" {
 namespace Kernel {
 
 
-KernelThread::KernelThread() : Thread(), kernelStack(STACK_SIZE_DEFAULT) {
+KernelThread::KernelThread() : Thread(Kernel::System::getKernelProcess()), kernelStack(STACK_SIZE_DEFAULT) {
     init();
 }
 
-KernelThread::KernelThread(const String &name) : Thread(name), kernelStack(STACK_SIZE_DEFAULT) {
+KernelThread::KernelThread(const String &name) : Thread(Kernel::System::getKernelProcess(), name), kernelStack(STACK_SIZE_DEFAULT) {
     init();
 }
 
-KernelThread::KernelThread(const String &name, uint8_t priority) : Thread(name, priority), kernelStack(STACK_SIZE_DEFAULT) {
+KernelThread::KernelThread(const String &name, uint8_t priority) : Thread(Kernel::System::getKernelProcess(), name, priority), kernelStack(STACK_SIZE_DEFAULT) {
     init();
 }
 

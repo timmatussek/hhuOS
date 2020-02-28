@@ -18,9 +18,11 @@ public:
 
     ~ProcessScheduler() = default;
 
-    bool isInitialized();
+    void setInitialized();
 
-    void startUp();
+    uint32_t isInitialized() const;
+
+    void start();
 
     void ready(Process &process);
 
@@ -48,23 +50,21 @@ private:
 
     friend class ThreadScheduler;
 
-    friend class TimeProvider;
-
     explicit ProcessScheduler(PriorityPattern &priority);
 
     Process& getNextProcess();
 
-    void onTimerInterrupt(uint64_t timestampMs);
+    void setCurrentProcess(Process &process);
 
-    void yield();
+    void yieldFromThreadScheduler(bool tryLock);
 
-    void yieldThreadSafe();
+    void yield(bool tryLock);
 
-    void dispatch(Process &next);
+    void dispatch(Process &next, bool tryLock);
 
 private:
 
-    bool initialized = false;
+    uint32_t initialized = 0;
 
     uint64_t lastTimestampMs = 0;
 

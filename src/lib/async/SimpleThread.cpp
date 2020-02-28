@@ -1,9 +1,11 @@
 #include "SimpleThread.h"
 
-SimpleThread::SimpleThread(void (*work)()) noexcept : work(work) {
+template<typename T>
+SimpleThread<T>::SimpleThread(void (*work)()) noexcept : work(work) {
 
 }
 
-void SimpleThread::run() {
+template<typename T>
+void SimpleThread<T>::run() {
     work();
 }

@@ -9,6 +9,8 @@
 
 namespace Kernel {
 
+class BootScreen;
+
 class BootCoordinator : public KernelThread {
 
 public:
@@ -27,6 +29,8 @@ public:
 
     Util::Array<BootComponent *> getComponents();
 
+    void registerBootScreen(BootScreen *bootScreen);
+
 private:
 
     void buildComponentLayers();
@@ -38,6 +42,8 @@ private:
     Util::ArrayList<BootComponent *> components;
 
     Util::ArrayList<Util::List<BootComponent *> *> layeredComponents;
+
+    BootScreen *bootScreen;
 
     void (*onFinish)();
 

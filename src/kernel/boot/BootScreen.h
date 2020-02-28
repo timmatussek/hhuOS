@@ -47,6 +47,8 @@ public:
 
     void init(uint16_t xres, uint16_t yres, uint8_t bpp);
 
+    void refresh();
+
     void finish();
 
     void run() override;

@@ -14,7 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
-#include "kernel/thread/Scheduler.h"
+#include <kernel/core/System.h>
 #include "ThreadPool.h"
 
 ThreadPool::ThreadPool(uint32_t size) : threads(size) {
@@ -53,7 +53,7 @@ void ThreadPool::stopWorking(bool force) {
         return;
     }
 
-    Kernel::Scheduler &scheduler = Kernel::Scheduler::getInstance();
+    Kernel::ThreadScheduler &scheduler = Kernel::System::getKernelProcess().getScheduler();
 
     if(!force) {
         bool allThreadsFinished = false;
