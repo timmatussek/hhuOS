@@ -91,8 +91,6 @@ BootComponent GatesOfHell::initServicesComponent("InitServicesComponent", Util::
 
     registerServices();
 
-    Kernel::getService<EventBus>()->start();
-
     log.trace("Finished registering services");
 
     Kernel::getService<FileSystem>()->mountInitRamdisk("/");
@@ -140,6 +138,8 @@ BootComponent GatesOfHell::initFilesystemComponent("InitFilesystemComponent", Ut
     Kernel::getService<FileSystem>()->init();
 
     log.trace("Finished initializing filesystem");
+
+    Kernel::getService<EventBus>()->start();
 
     afterFsInitModHook();
 });
