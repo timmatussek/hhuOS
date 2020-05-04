@@ -1,26 +1,10 @@
-/*
- * Copyright (C) 2018 Burak Akguel, Christian Gesse, Fabian Ruhland, Filip Krakowski, Michael Schoettner
- * Heinrich-Heine University
- *
- * This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
- * License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
- * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>
- */
-
+#include <BuildConfig.h>
+#include <lib/math/Random.h>
+#include <kernel/log/Logger.h>
 #include "FatDriver.h"
-#include "FatNode.h"
 
-FatDriver::~FatDriver() {
-    if(fatInstance != nullptr) {
-        delete fatInstance;
-    }
+extern "C" {
+#include <lib/libc/math.h>
 }
 
 String FatDriver::getTypeName() {
@@ -28,59 +12,213 @@ String FatDriver::getTypeName() {
 }
 
 bool FatDriver::mount(StorageDevice *device) {
-    this->device = device;
-    fatInstance = new FatFs(device);
-
-    return fatInstance->f_mount(device, 1) == FR_OK;
-
+    return false;
 }
 
 bool FatDriver::createFs(StorageDevice *device) {
-    auto *tmpFat = new FatFs(device);
+    Util::SmartPointer<uint8_t> bootSector(new uint8_t[device->getSectorSize()]);
 
-    auto fatType = static_cast<uint8_t>(device->getSectorCount() <= MAX_FAT16 ? FM_FAT : FM_FAT32);
-    bool ret = tmpFat->f_mkfs(fatType, 0, new char[4096], 4096) == FR_OK;
+    if(!device->read(bootSector.get(), 0, 1)) {
+        return false;
+    }
 
-    delete tmpFat;
-    return ret;
+    BiosParameterBlock parameterBlock = createBiosParameterBlock(*device, FAT12);
+    ExtendedBiosParameterBlock bootRecord = createExtendedBiosParameterBlock(*device, FAT12);
+
+    memset(bootSector.get(), 0, device->getSectorSize());
+    memcpy(bootSector.get(), &parameterBlock, sizeof(BiosParameterBlock));
+    memcpy(bootSector.get() + sizeof(BiosParameterBlock), &bootRecord, sizeof(ExtendedBiosParameterBlock));
+
+    *reinterpret_cast<uint16_t*>(&bootSector.get()[510]) = PARTITION_SIGNATURE;
+
+    return device->write(bootSector.get(), 0, 1);
 }
 
 Util::SmartPointer<FsNode> FatDriver::getNode(const String &path) {
-    if(path.length() == 0 || path == "/") {
-        return Util::SmartPointer<FsNode>(FatNode::open("", fatInstance));
-    }
-
-    FILINFO info{};
-    if(fatInstance->f_stat((char *) path, &info) != FR_OK) {
-        return Util::SmartPointer<FsNode>(nullptr);
-    }
-    
-    return Util::SmartPointer<FsNode>(FatNode::open(path, fatInstance));
+    return Util::SmartPointer<FsNode>();
 }
 
 bool FatDriver::createNode(const String &path, uint8_t fileType) {
-    if(fileType == FsNode::DIRECTORY_FILE) {
-        if(fatInstance->f_mkdir((char *) path) == FR_OK) {
-            return true;
-        }
-    } else if(fileType == FsNode::REGULAR_FILE) {
-        FIL file{};
-        if(fatInstance->f_open(&file, (char *) path, FA_WRITE | FA_CREATE_ALWAYS) == FR_OK) {
-            fatInstance->f_close(&file);
-            return true;
-        }
-    }
-
     return false;
 }
 
 bool FatDriver::deleteNode(const String &path) {
-    FILINFO info{};
-    if(fatInstance->f_stat((char *) path, &info) == FR_OK) {
-        if (fatInstance->f_unlink((char *) path) == FR_OK) {
-            return true;
+    return false;
+}
+
+FatDriver::BiosParameterBlock FatDriver::createBiosParameterBlock(StorageDevice &device, FatType fatType) {
+    String osVersion = BuildConfig::getVersion();
+    while(osVersion.length() > 0 && String::isAlpha(osVersion[0])) {
+        osVersion = osVersion.substring(1, osVersion.length());
+    }
+
+    String oemName = "hhuOS" + osVersion;
+
+    MediaInfo info = getMediaInfo(device);
+
+    BiosParameterBlock parameterBlock{};
+
+    // Put asm code for endless loop at the beginning of the MBR
+    parameterBlock.jmpCode[0] = 0xeb;
+    parameterBlock.jmpCode[1] = 0xfe;
+    parameterBlock.jmpCode[2] = 0x90;
+
+    memset(parameterBlock.oemName, ' ', sizeof(parameterBlock.oemName));
+    memcpy(parameterBlock.oemName, static_cast<char*>(oemName),
+           oemName.length() > sizeof(parameterBlock.oemName) ? sizeof(parameterBlock.oemName) : oemName.length());
+
+    parameterBlock.bytesPerSector = device.getSectorSize();
+
+    uint8_t bitsPerAddress;
+    switch(fatType) {
+        case FAT12:
+            bitsPerAddress = 12;
+            break;
+        case FAT16:
+            bitsPerAddress = 16;
+            break;
+        case FAT32:
+            bitsPerAddress = 28;
+            break;
+    }
+
+    uint32_t neededSectorsPerCluster = device.getSectorCount() / pow(2, bitsPerAddress);
+
+    if(neededSectorsPerCluster < 1) {
+        neededSectorsPerCluster = 1;
+    } else if(neededSectorsPerCluster > MAX_SECTORS_PER_CLUSTER) {
+        neededSectorsPerCluster = MAX_SECTORS_PER_CLUSTER;
+    }  else {
+        uint32_t x = neededSectorsPerCluster - 1;
+        neededSectorsPerCluster = 2;
+
+        while(x >>= 1) {
+            neededSectorsPerCluster <<= 1;
         }
     }
 
-    return false;
+    parameterBlock.sectorsPerCluster = neededSectorsPerCluster;
+
+    parameterBlock.reservedSectorCount = 1;
+    parameterBlock.fatCount = 2;
+    parameterBlock.rootEntryCount = device.getSectorCount() > 5760 ? DEFAULT_ROOT_ENTRIES : DEFAULT_ROOT_ENTRIES_FLOPPY;
+
+    parameterBlock.sectorCount16 = device.getSectorCount() > 65535 ? 0 : device.getSectorCount();
+
+    parameterBlock.mediaDescriptor = info.type;
+
+    switch(fatType) {
+        case FAT12:
+            bitsPerAddress = 12;
+            break;
+        case FAT16:
+            bitsPerAddress = 16;
+            break;
+        case FAT32:
+            bitsPerAddress = 32;
+            break;
+    }
+
+    parameterBlock.sectorsPerFat = ((static_cast<uint32_t>(device.getSectorCount()) / parameterBlock.sectorsPerCluster) * bitsPerAddress) / 8 / device.getSectorSize() + 1;
+
+    parameterBlock.sectorsPerTrack = info.sectorsPerTrack;
+    parameterBlock.headCount = info.headCount;
+    parameterBlock.hiddenSectorCount = 0;
+
+    parameterBlock.sectorCount32 = device.getSectorCount() > 65535 ? device.getSectorCount() : 0;
+
+    return parameterBlock;
+}
+
+FatDriver::ExtendedBiosParameterBlock FatDriver::createExtendedBiosParameterBlock(StorageDevice &device, FatType fatType) {
+    ExtendedBiosParameterBlock bootRecord{};
+    MediaInfo info = getMediaInfo(device);
+    Random random;
+
+    bootRecord.driveNumber = info.driveNumber;
+    bootRecord.bootSignature = DEFAULT_SIGNATURE;
+
+    bootRecord.volumeId = random.rand(0xff) | (random.rand(0xff) << 8) | (random.rand(0xff) << 16) | (random.rand(0xff) << 24);
+
+    memset(bootRecord.volumeLabel, ' ', sizeof(bootRecord.volumeLabel));
+    memcpy(bootRecord.volumeLabel, DEFAULT_VOLUME_LABEL, 11);
+
+    memset(bootRecord.fatType, ' ', sizeof(bootRecord.fatType));
+
+    switch(fatType) {
+        case FAT12:
+            memcpy(bootRecord.fatType, FAT12_TYPE, 8);
+            break;
+        case FAT16:
+            memcpy(bootRecord.fatType, FAT16_TYPE, 8);
+            break;
+        case FAT32:
+            memcpy(bootRecord.fatType, FAT32_TYPE, 8);
+            break;
+    }
+
+    return bootRecord;
+}
+
+FatDriver::MediaInfo FatDriver::getMediaInfo(StorageDevice &device) {
+    MediaInfo info{};
+
+    switch(device.getSectorCount()) {
+        case 5760:
+            info.type = FLOPPY_35_1440K;
+            info.driveNumber = 0x00;
+            info.sectorsPerTrack = 36;
+            info.headCount = 2;
+            break;
+        case 2880:
+            info.type = FLOPPY_35_1440K;
+            info.driveNumber = 0x00;
+            info.sectorsPerTrack = 18;
+            info.headCount = 2;
+            break;
+        case 1440:
+            info.type = FLOPPY_35_720K;
+            info.driveNumber = 0x00;
+            info.sectorsPerTrack = 9;
+            info.headCount = 2;
+            break;
+        case 2400:
+            info.type = FLOPPY_35_720K;
+            info.driveNumber = 0x00;
+            info.sectorsPerTrack = 15;
+            info.headCount = 2;
+            break;
+        case 360:
+            info.type = FLOPPY_525_180K;
+            info.driveNumber = 0x00;
+            info.sectorsPerTrack = 9;
+            info.headCount = 1;
+            break;
+        case 720:
+            info.type = FLOPPY_525_360K;
+            info.driveNumber = 0x00;
+            info.sectorsPerTrack = 9;
+            info.headCount = 2;
+            break;
+        case 320:
+            info.type = FLOPPY_525_160K;
+            info.driveNumber = 0x00;
+            info.sectorsPerTrack = 8;
+            info.headCount = 1;
+            break;
+        case 640:
+            info.type = FLOPPY_525_320K;
+            info.driveNumber = 0x00;
+            info.sectorsPerTrack = 8;
+            info.headCount = 2;
+            break;
+        default:
+            info.type = FIXED_DISK;
+            info.driveNumber = 0x80;
+            info.sectorsPerTrack = 0;
+            info.headCount = 0;
+            break;
+    }
+
+    return info;
 }
