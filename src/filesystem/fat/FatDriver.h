@@ -20,59 +20,18 @@
 #define HHUOS_FATDRIVER_H
 
 #include <filesystem/core/FsDriver.h>
+#include "FileAllocationTable.h"
 
 class FatDriver : public FsDriver {
 
 private:
 
-    enum FatType: uint8_t {
-        FAT12,
-        FAT16,
-        FAT32
-    };
-
-    enum MediaDescriptor: uint8_t {
-        FLOPPY_35_1440K = 0xf0,
-        FIXED_DISK = 0xf8,
-        FLOPPY_35_720K = 0xf9,
-        FLOPPY_525_180K = 0xfc,
-        FLOPPY_525_360K = 0xfd,
-        FLOPPY_525_160K = 0xfe,
-        FLOPPY_525_320K = 0xff,
-    };
-
     struct MediaInfo {
-        MediaDescriptor type;
+        FileAllocationTable::MediaDescriptor type;
         uint8_t driveNumber;
         uint16_t sectorsPerTrack;
         uint16_t headCount;
     };
-
-    struct BiosParameterBlock {
-        uint8_t jmpCode[3];
-        char oemName[8];
-        uint16_t bytesPerSector;
-        uint8_t sectorsPerCluster;
-        uint16_t reservedSectorCount;
-        uint8_t fatCount;
-        uint16_t rootEntryCount;
-        uint16_t sectorCount16;
-        MediaDescriptor mediaDescriptor;
-        uint16_t sectorsPerFat;
-        uint16_t sectorsPerTrack;
-        uint16_t headCount;
-        uint32_t hiddenSectorCount;
-        uint32_t sectorCount32;
-    } __attribute__((packed));
-
-    struct ExtendedBiosParameterBlock {
-        uint8_t driveNumber;
-        uint8_t reserved1;
-        uint8_t bootSignature;
-        uint32_t volumeId;
-        char volumeLabel[11];
-        char fatType[8];
-    } __attribute__((packed));
 
 public:
 
@@ -121,8 +80,8 @@ public:
 private:
 
     static MediaInfo getMediaInfo(StorageDevice &device);
-    static FatDriver::BiosParameterBlock createBiosParameterBlock(StorageDevice &device, FatType fatType);
-    static FatDriver::ExtendedBiosParameterBlock createExtendedBiosParameterBlock(StorageDevice &device, FatType fatType);
+    static FileAllocationTable::BiosParameterBlock createBiosParameterBlock(StorageDevice &device, FileAllocationTable::Type fatType);
+    static FileAllocationTable::ExtendedBiosParameterBlock createExtendedBiosParameterBlock(StorageDevice &device, FileAllocationTable::Type fatType);
 
     static const constexpr char *TYPE_NAME = "FatDriver";
     static const constexpr char *DEFAULT_VOLUME_LABEL = "NO NAME    ";

@@ -2,6 +2,7 @@
 #include <lib/math/Random.h>
 #include <kernel/log/Logger.h>
 #include "FatDriver.h"
+#include "FileAllocationTable12.h"
 
 extern "C" {
 #include <lib/libc/math.h>
@@ -22,16 +23,24 @@ bool FatDriver::createFs(StorageDevice *device) {
         return false;
     }
 
-    BiosParameterBlock parameterBlock = createBiosParameterBlock(*device, FAT12);
-    ExtendedBiosParameterBlock bootRecord = createExtendedBiosParameterBlock(*device, FAT12);
+    FileAllocationTable::BiosParameterBlock parameterBlock = createBiosParameterBlock(*device, FileAllocationTable::FAT12);
+    FileAllocationTable::ExtendedBiosParameterBlock extendedParameterBlock = createExtendedBiosParameterBlock(*device, FileAllocationTable::FAT12);
 
     memset(bootSector.get(), 0, device->getSectorSize());
-    memcpy(bootSector.get(), &parameterBlock, sizeof(BiosParameterBlock));
-    memcpy(bootSector.get() + sizeof(BiosParameterBlock), &bootRecord, sizeof(ExtendedBiosParameterBlock));
+    memcpy(bootSector.get(), &parameterBlock, sizeof(FileAllocationTable::BiosParameterBlock));
+    memcpy(bootSector.get() + sizeof(FileAllocationTable::BiosParameterBlock), &extendedParameterBlock, sizeof(FileAllocationTable::ExtendedBiosParameterBlock));
 
     *reinterpret_cast<uint16_t*>(&bootSector.get()[510]) = PARTITION_SIGNATURE;
 
-    return device->write(bootSector.get(), 0, 1);
+    if(!device->write(bootSector.get(), 0, 1)) {
+        return false;
+    }
+
+    FileAllocationTable12 table(*device);
+    table.setEntry(0, 0xf00 | parameterBlock.mediaDescriptor);
+    table.setEntry(1, 0xfff);
+
+    return true;
 }
 
 Util::SmartPointer<FsNode> FatDriver::getNode(const String &path) {
@@ -46,7 +55,7 @@ bool FatDriver::deleteNode(const String &path) {
     return false;
 }
 
-FatDriver::BiosParameterBlock FatDriver::createBiosParameterBlock(StorageDevice &device, FatType fatType) {
+FileAllocationTable::BiosParameterBlock FatDriver::createBiosParameterBlock(StorageDevice &device, FileAllocationTable::Type fatType) {
     String osVersion = BuildConfig::getVersion();
     while(osVersion.length() > 0 && String::isAlpha(osVersion[0])) {
         osVersion = osVersion.substring(1, osVersion.length());
@@ -56,7 +65,7 @@ FatDriver::BiosParameterBlock FatDriver::createBiosParameterBlock(StorageDevice 
 
     MediaInfo info = getMediaInfo(device);
 
-    BiosParameterBlock parameterBlock{};
+    FileAllocationTable::BiosParameterBlock parameterBlock{};
 
     // Put asm code for endless loop at the beginning of the MBR
     parameterBlock.jmpCode[0] = 0xeb;
@@ -71,13 +80,13 @@ FatDriver::BiosParameterBlock FatDriver::createBiosParameterBlock(StorageDevice 
 
     uint8_t bitsPerAddress;
     switch(fatType) {
-        case FAT12:
+        case FileAllocationTable::FAT12:
             bitsPerAddress = 12;
             break;
-        case FAT16:
+        case FileAllocationTable::FAT16:
             bitsPerAddress = 16;
             break;
-        case FAT32:
+        case FileAllocationTable::FAT32:
             bitsPerAddress = 28;
             break;
     }
@@ -108,13 +117,13 @@ FatDriver::BiosParameterBlock FatDriver::createBiosParameterBlock(StorageDevice 
     parameterBlock.mediaDescriptor = info.type;
 
     switch(fatType) {
-        case FAT12:
+        case FileAllocationTable::FAT12:
             bitsPerAddress = 12;
             break;
-        case FAT16:
+        case FileAllocationTable::FAT16:
             bitsPerAddress = 16;
             break;
-        case FAT32:
+        case FileAllocationTable::FAT32:
             bitsPerAddress = 32;
             break;
     }
@@ -130,8 +139,8 @@ FatDriver::BiosParameterBlock FatDriver::createBiosParameterBlock(StorageDevice 
     return parameterBlock;
 }
 
-FatDriver::ExtendedBiosParameterBlock FatDriver::createExtendedBiosParameterBlock(StorageDevice &device, FatType fatType) {
-    ExtendedBiosParameterBlock bootRecord{};
+FileAllocationTable::ExtendedBiosParameterBlock FatDriver::createExtendedBiosParameterBlock(StorageDevice &device, FileAllocationTable::Type fatType) {
+    FileAllocationTable::ExtendedBiosParameterBlock bootRecord{};
     MediaInfo info = getMediaInfo(device);
     Random random;
 
@@ -146,13 +155,13 @@ FatDriver::ExtendedBiosParameterBlock FatDriver::createExtendedBiosParameterBloc
     memset(bootRecord.fatType, ' ', sizeof(bootRecord.fatType));
 
     switch(fatType) {
-        case FAT12:
+        case FileAllocationTable::FAT12:
             memcpy(bootRecord.fatType, FAT12_TYPE, 8);
             break;
-        case FAT16:
+        case FileAllocationTable::FAT16:
             memcpy(bootRecord.fatType, FAT16_TYPE, 8);
             break;
-        case FAT32:
+        case FileAllocationTable::FAT32:
             memcpy(bootRecord.fatType, FAT32_TYPE, 8);
             break;
     }
@@ -165,55 +174,55 @@ FatDriver::MediaInfo FatDriver::getMediaInfo(StorageDevice &device) {
 
     switch(device.getSectorCount()) {
         case 5760:
-            info.type = FLOPPY_35_1440K;
+            info.type = FileAllocationTable::FLOPPY_35_1440K;
             info.driveNumber = 0x00;
             info.sectorsPerTrack = 36;
             info.headCount = 2;
             break;
         case 2880:
-            info.type = FLOPPY_35_1440K;
+            info.type = FileAllocationTable::FLOPPY_35_1440K;
             info.driveNumber = 0x00;
             info.sectorsPerTrack = 18;
             info.headCount = 2;
             break;
         case 1440:
-            info.type = FLOPPY_35_720K;
+            info.type = FileAllocationTable::FLOPPY_35_720K;
             info.driveNumber = 0x00;
             info.sectorsPerTrack = 9;
             info.headCount = 2;
             break;
         case 2400:
-            info.type = FLOPPY_35_720K;
+            info.type = FileAllocationTable::FLOPPY_35_720K;
             info.driveNumber = 0x00;
             info.sectorsPerTrack = 15;
             info.headCount = 2;
             break;
         case 360:
-            info.type = FLOPPY_525_180K;
+            info.type = FileAllocationTable::FLOPPY_525_180K;
             info.driveNumber = 0x00;
             info.sectorsPerTrack = 9;
             info.headCount = 1;
             break;
         case 720:
-            info.type = FLOPPY_525_360K;
+            info.type = FileAllocationTable::FLOPPY_525_360K;
             info.driveNumber = 0x00;
             info.sectorsPerTrack = 9;
             info.headCount = 2;
             break;
         case 320:
-            info.type = FLOPPY_525_160K;
+            info.type = FileAllocationTable::FLOPPY_525_160K;
             info.driveNumber = 0x00;
             info.sectorsPerTrack = 8;
             info.headCount = 1;
             break;
         case 640:
-            info.type = FLOPPY_525_320K;
+            info.type = FileAllocationTable::FLOPPY_525_320K;
             info.driveNumber = 0x00;
             info.sectorsPerTrack = 8;
             info.headCount = 2;
             break;
         default:
-            info.type = FIXED_DISK;
+            info.type = FileAllocationTable::FIXED_DISK;
             info.driveNumber = 0x80;
             info.sectorsPerTrack = 0;
             info.headCount = 0;
