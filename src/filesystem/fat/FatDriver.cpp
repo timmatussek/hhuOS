@@ -3,6 +3,8 @@
 #include <kernel/log/Logger.h>
 #include "FatDriver.h"
 #include "FileAllocationTable12.h"
+#include "FileAllocationTable16.h"
+#include "FileAllocationTable32.h"
 
 extern "C" {
 #include <lib/libc/math.h>
