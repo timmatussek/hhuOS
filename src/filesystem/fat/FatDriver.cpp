@@ -15,7 +15,31 @@ String FatDriver::getTypeName() {
 }
 
 bool FatDriver::mount(StorageDevice *device) {
-    return false;
+    this->device = device;
+
+    Util::SmartPointer<uint8_t> bootSector(new uint8_t[device->getSectorSize()]);
+
+    if(!device->read(bootSector.get(), 0, 1)) {
+        return false;
+    }
+
+    auto *parameterBlock = reinterpret_cast<FileAllocationTable::BiosParameterBlock*>(bootSector.get());
+
+    uint32_t sectorCount = parameterBlock->sectorCount16 == 0 ? parameterBlock->sectorCount32 : parameterBlock->sectorCount16;
+    uint32_t clusterCount = sectorCount / parameterBlock->sectorsPerCluster;
+
+    if(clusterCount < 4085) {
+        fat = Util::SmartPointer<FileAllocationTable>(new FileAllocationTable12(*device));
+    } else if(clusterCount < 65525) {
+        fat = Util::SmartPointer<FileAllocationTable>(new FileAllocationTable16(*device));
+    } else if(clusterCount  < 268435445) {
+        fat = Util::SmartPointer<FileAllocationTable>(new FileAllocationTable32(*device));
+    } else {
+        // TODO: EXFAT support
+        return false;
+    }
+
+    return true;
 }
 
 bool FatDriver::createFs(StorageDevice *device) {

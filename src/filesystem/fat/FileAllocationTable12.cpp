@@ -41,3 +41,7 @@ void FileAllocationTable12::setEntry(uint32_t index, uint32_t value) {
         getDevice().write(fat + tableIndex / getDevice().getSectorSize(), parameterBlock.reservedSectorCount + i * parameterBlock.sectorsPerFat + tableIndex / getDevice().getSectorSize(), 1);
     }
 }
+
+FileAllocationTable::Type FileAllocationTable12::getType() {
+    return FileAllocationTable::FAT12;
+}

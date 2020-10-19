@@ -23,3 +23,7 @@ void FileAllocationTable16::setEntry(uint32_t index, uint32_t value) {
         getDevice().write(reinterpret_cast<const uint8_t *>(fat + index * 2 / getDevice().getSectorSize()), parameterBlock.reservedSectorCount + i * parameterBlock.sectorsPerFat + index * 2 / getDevice().getSectorSize(), 1);
     }
 }
+
+FileAllocationTable::Type FileAllocationTable16::getType() {
+    return FileAllocationTable::FAT16;
+}

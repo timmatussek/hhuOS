@@ -79,6 +79,11 @@ public:
 
 private:
 
+    StorageDevice *device;
+    Util::SmartPointer<FileAllocationTable> fat;
+
+private:
+
     static MediaInfo getMediaInfo(StorageDevice &device);
     static FileAllocationTable::BiosParameterBlock createBiosParameterBlock(StorageDevice &device, FileAllocationTable::Type fatType);
     static FileAllocationTable::ExtendedBiosParameterBlock createExtendedBiosParameterBlock(StorageDevice &device, FileAllocationTable::Type fatType);

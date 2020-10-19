@@ -38,6 +38,8 @@ public:
 
     void setEntry(uint32_t index, uint32_t value) override;
 
+    Type getType() override;
+
 private:
 
     Util::ArrayList<Util::SmartPointer<uint8_t>> tables;

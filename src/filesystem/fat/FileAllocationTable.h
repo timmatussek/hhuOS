@@ -25,20 +25,6 @@ class FileAllocationTable {
 
 public:
 
-    explicit FileAllocationTable(StorageDevice &device);
-
-    FileAllocationTable(FileAllocationTable &copy) = delete;
-
-    FileAllocationTable& operator=(FileAllocationTable &copy) = delete;
-
-    virtual ~FileAllocationTable() = default;
-
-    virtual uint32_t getEntry(uint32_t index) = 0;
-
-    virtual void setEntry(uint32_t index, uint32_t value) = 0;
-
-public:
-
     enum Type: uint8_t {
         FAT12,
         FAT16,
@@ -81,6 +67,22 @@ public:
         char fatType[8];
     } __attribute__((packed));
 
+public:
+
+    explicit FileAllocationTable(StorageDevice &device);
+
+    FileAllocationTable(FileAllocationTable &copy) = delete;
+
+    FileAllocationTable& operator=(FileAllocationTable &copy) = delete;
+
+    virtual ~FileAllocationTable() = default;
+
+    virtual uint32_t getEntry(uint32_t index) = 0;
+
+    virtual void setEntry(uint32_t index, uint32_t value) = 0;
+
+    virtual Type getType() = 0;
+
 protected:
 
     StorageDevice& getDevice();
@@ -90,7 +92,7 @@ protected:
 private:
 
     StorageDevice &device;
-    BiosParameterBlock biosParameterBlock;
+    BiosParameterBlock biosParameterBlock{};
 };
 
 #endif
