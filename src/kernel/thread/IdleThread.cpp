@@ -1,8 +1,9 @@
+#include <kernel/core/System.h>
 #include "IdleThread.h"
 
 namespace Kernel {
 
-IdleThread::IdleThread() : KernelThread("IdleThread", 0) {
+IdleThread::IdleThread() : KernelThread(Kernel::System::getKernelProcess(), "IdleThread", 0) {
 
 }
 

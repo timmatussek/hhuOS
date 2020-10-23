@@ -25,11 +25,11 @@ class KernelThread : public Thread {
 
 public:
 
-    KernelThread();
+    explicit KernelThread(Process &process);
 
-    explicit KernelThread(const String &name);
+    KernelThread(Process &process, const String &name);
 
-    KernelThread(const String &name, uint8_t priority);
+    KernelThread(Process &process, const String &name, uint8_t priority);
 
     KernelThread(const Thread &copy) = delete;
 

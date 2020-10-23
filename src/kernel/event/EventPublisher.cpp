@@ -9,12 +9,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
+#include <kernel/core/System.h>
 #include "lib/util/SmartPointer.h"
 #include "EventPublisher.h"
 
 namespace Kernel {
 
-EventPublisher::EventPublisher(Receiver &receiver) : KernelThread("EventPublisher", 0xff), receiver(receiver) {
+EventPublisher::EventPublisher(Receiver &receiver) : KernelThread(Kernel::System::getKernelProcess(), "EventPublisher", 0xff), receiver(receiver) {
 
 }
 

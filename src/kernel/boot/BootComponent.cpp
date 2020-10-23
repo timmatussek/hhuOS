@@ -1,9 +1,10 @@
+#include <kernel/core/System.h>
 #include "BootComponent.h"
 
 namespace Kernel {
 
 BootComponent::BootComponent(const String &name, Util::Array<BootComponent *> dependencies, void (*function)()) :
-        KernelThread(name, 0xff), waiting(true), finished(false), dependencies(dependencies), function(function) {
+        KernelThread(Kernel::System::getKernelProcess(), name, 0xff), waiting(true), finished(false), dependencies(dependencies), function(function) {
 
 }
 

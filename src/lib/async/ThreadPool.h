@@ -35,13 +35,13 @@ private:
 
         Spinlock *workQueueLock = nullptr;
 
-        ThreadPoolWorker() = default;
+        ThreadPoolWorker() : Kernel::KernelThread(Kernel::System::getKernelProcess()) {}
 
-        explicit ThreadPoolWorker(ThreadPool *pool, Spinlock *workQueueLock) : pool(pool), workQueueLock(workQueueLock) {
+        explicit ThreadPoolWorker(ThreadPool *pool, Spinlock *workQueueLock) : Kernel::KernelThread(Kernel::System::getKernelProcess()), pool(pool), workQueueLock(workQueueLock) {
 
         }
 
-        ThreadPoolWorker(const ThreadPoolWorker &other) {
+        ThreadPoolWorker(const ThreadPoolWorker &other) : Kernel::KernelThread(Kernel::System::getKernelProcess()) {
             this->pool = other.pool;
             this->workQueueLock = other.workQueueLock;
         }

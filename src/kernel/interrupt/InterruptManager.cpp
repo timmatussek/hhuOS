@@ -5,7 +5,7 @@
 
 namespace Kernel {
 
-InterruptManager::InterruptManager() : KernelThread("InterruptManager", 0xff) {
+InterruptManager::InterruptManager() : KernelThread(Kernel::System::getKernelProcess(), "InterruptManager", 0xff) {
 
 }
 

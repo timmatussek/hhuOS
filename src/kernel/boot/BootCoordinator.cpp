@@ -6,7 +6,7 @@
 namespace Kernel {
 
 BootCoordinator::BootCoordinator(Util::Array<BootComponent *> components, void (*onFinish)()) :
-        KernelThread("BootCoordinator", 0xff), hasStarted(false), onFinish(onFinish) {
+        KernelThread(Kernel::System::getKernelProcess(), "BootCoordinator", 0xff), hasStarted(false), onFinish(onFinish) {
     for (const auto &component : components) {
         addComponent(component);
     }

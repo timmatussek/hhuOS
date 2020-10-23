@@ -25,15 +25,15 @@ extern "C" {
 namespace Kernel {
 
 
-KernelThread::KernelThread() : Thread(Kernel::System::getKernelProcess()), kernelStack(STACK_SIZE_DEFAULT) {
+KernelThread::KernelThread(Process &process) : Thread(Kernel::System::getKernelProcess()), kernelStack(STACK_SIZE_DEFAULT) {
     init();
 }
 
-KernelThread::KernelThread(const String &name) : Thread(Kernel::System::getKernelProcess(), name), kernelStack(STACK_SIZE_DEFAULT) {
+KernelThread::KernelThread(Process &process, const String &name) : Thread(process, name), kernelStack(STACK_SIZE_DEFAULT) {
     init();
 }
 
-KernelThread::KernelThread(const String &name, uint8_t priority) : Thread(Kernel::System::getKernelProcess(), name, priority), kernelStack(STACK_SIZE_DEFAULT) {
+KernelThread::KernelThread(Process &process, const String &name, uint8_t priority) : Thread(process, name, priority), kernelStack(STACK_SIZE_DEFAULT) {
     init();
 }
 

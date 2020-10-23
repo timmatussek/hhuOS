@@ -21,7 +21,7 @@
 
 namespace Kernel {
 
-EventBus::EventBus() : KernelThread("EventBus", 0xff), receiverMap() {
+EventBus::EventBus() : KernelThread(Kernel::System::getKernelProcess(), "EventBus", 0xff), receiverMap() {
 
     isInitialized = true;
 }

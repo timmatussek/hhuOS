@@ -32,7 +32,7 @@ auto versionString = String::format("hhuOS %s - git %s (%s)", BuildConfig::getVe
                                     BuildConfig::getGitBranch());
 auto buildDate = String::format("Build date: %s", BuildConfig::getBuildDate());
 
-BootScreen::BootScreen(BootCoordinator &coordinator) : KernelThread("Bootscreen"), coordinator(coordinator), components(0), componentNames(0) {
+BootScreen::BootScreen(BootCoordinator &coordinator) : KernelThread(Kernel::System::getKernelProcess(), "Bootscreen"), coordinator(coordinator), components(0), componentNames(0) {
 
     lfb = System::getService<GraphicsService>()->getLinearFrameBuffer();
 
