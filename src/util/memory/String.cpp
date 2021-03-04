@@ -15,7 +15,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
-#include <kernel/core/Management.h>
 #include "util/data/List.h"
 #include "util/data/ArrayList.h"
 #include "String.h"
@@ -191,7 +190,7 @@ uint32_t String::indexOf(const String &other, uint32_t start) const {
 }
 
 
-String String::remove(const String &string) const {
+/*String String::remove(const String &string) const {
 
     uint32_t index = indexOf(string);
 
@@ -200,9 +199,9 @@ String String::remove(const String &string) const {
     }
 
     return substring(0, index) + substring(index + string.len, len);
-}
+}*/
 
-String String::removeAll(const String &string) const {
+/*String String::removeAll(const String &string) const {
 
     Util::Data::Array<String> tokens = split(string);
 
@@ -213,7 +212,7 @@ String String::removeAll(const String &string) const {
     }
 
     return tmp;
-}
+}*/
 
 bool String::beginsWith(const String &string) const {
     return substring(0, string.len) == string;
@@ -257,7 +256,7 @@ String &String::operator=(const String &other) {
     return *this;
 }
 
-String &String::operator+=(const String &other) {
+/*String &String::operator+=(const String &other) {
 
     Kernel::Management::getInstance().realloc(buffer, len + other.len + 1);
 
@@ -266,52 +265,52 @@ String &String::operator+=(const String &other) {
     len += other.len;
 
     return *this;
-}
+}*/
 
-String operator+(const String &first, const String &second) {
+/*String operator+(const String &first, const String &second) {
 
     String tmp = first;
 
     tmp += second;
 
     return tmp;
-}
+}*/
 
-String operator+(const String &first, char second) {
+/*String operator+(const String &first, char second) {
 
     String tmp = first;
 
     tmp += String(second);
 
     return tmp;
-}
+}*/
 
-String operator+(const String &first, const char *second) {
+/*String operator+(const String &first, const char *second) {
 
     String tmp = first;
 
     tmp += String(second);
 
     return tmp;
-}
+}*/
 
-String operator+(char first, const String &second) {
-
-    String tmp = first;
-
-    tmp += second;
-
-    return tmp;
-}
-
-String operator+(const char *first, const String &second) {
+/*String operator+(char first, const String &second) {
 
     String tmp = first;
 
     tmp += second;
 
     return tmp;
-}
+}*/
+
+/*String operator+(const char *first, const String &second) {
+
+    String tmp = first;
+
+    tmp += second;
+
+    return tmp;
+}*/
 
 String::operator char *() const {
     return buffer;
@@ -339,7 +338,7 @@ String::operator uint32_t() const {
     return hash;
 }
 
-String String::join(const String &separator, const Util::Data::Array<String> &elements) {
+/*String String::join(const String &separator, const Util::Data::Array<String> &elements) {
 
     String tmp = String();
 
@@ -352,7 +351,7 @@ String String::join(const String &separator, const Util::Data::Array<String> &el
     tmp += elements[size - 1];
 
     return tmp;
-}
+}*/
 
 String String::valueOf(bool value) {
     return value ? String("true") : String("false");

@@ -15,55 +15,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
-#include <device/cpu/Cpu.h>
 #include <util/stream/TerminalOutputStream.h>
 #include <util/stream/StringFormatOutputStream.h>
 #include <util/stream/BufferedOutputStream.h>
-#include <device/bios/Bios.h>
-#include <device/graphic/VesaBiosExtensions.h>
 #include <kernel/multiboot/MultibootLinearFrameBufferProvider.h>
 #include <device/graphic/LinearFrameBufferTerminalProvider.h>
-#include <device/graphic/ColorGraphicsArrayProvider.h>
-#include <util/reflection/InstanceFactory.h>
-#include <kernel/multiboot/Structure.h>
-#include <kernel/multiboot/MultibootTerminalProvider.h>
 #include "GatesOfHell.h"
 #include "BuildConfig.h"
+#include "Platform.h"
 
 void GatesOfHell::enter() {
-    if (Device::Bios::isAvailable()) {
-        Device::Bios::init();
-    }
+    Device::Graphic::LinearFrameBufferProvider *lfbProvider = new Kernel::Multiboot::MultibootLinearFrameBufferProvider();
+    Device::Graphic::TerminalProvider *terminalProvider = new Device::Graphic::LinearFrameBufferTerminalProvider(*lfbProvider);
 
-    if (Device::Graphic::VesaBiosExtensions::isAvailable()) {
-        Util::Reflection::InstanceFactory::registerPrototype(new Device::Graphic::VesaBiosExtensions(true));
-    }
-
-    if (Device::Graphic::ColorGraphicsArrayProvider::isAvailable()) {
-        Util::Reflection::InstanceFactory::registerPrototype(new Device::Graphic::ColorGraphicsArrayProvider(true));
-    }
-
-    Device::Graphic::LinearFrameBufferProvider *lfbProvider = nullptr;
-    Device::Graphic::TerminalProvider *terminalProvider;
-
-    if (Kernel::Multiboot::Structure::hasKernelOption("lfb_provider")) {
-        auto providerName = Kernel::Multiboot::Structure::getKernelOption("lfb_provider");
-        lfbProvider = reinterpret_cast<Device::Graphic::LinearFrameBufferProvider*>(Util::Reflection::InstanceFactory::createInstance(providerName));
-    } else if (Kernel::Multiboot::MultibootLinearFrameBufferProvider::isAvailable()) {
-        lfbProvider = new Kernel::Multiboot::MultibootLinearFrameBufferProvider();
-    }
-
-    if (Kernel::Multiboot::Structure::hasKernelOption("terminal_provider")) {
-        auto providerName = Kernel::Multiboot::Structure::getKernelOption("terminal_provider");
-        terminalProvider = reinterpret_cast<Device::Graphic::TerminalProvider*>(Util::Reflection::InstanceFactory::createInstance(providerName));
-    } else if (lfbProvider != nullptr) {
-        terminalProvider = new Device::Graphic::LinearFrameBufferTerminalProvider(*lfbProvider);
-    }  else if (Kernel::Multiboot::MultibootTerminalProvider::isAvailable()) {
-        terminalProvider = new Kernel::Multiboot::MultibootTerminalProvider();
-    } else {
-        Device::Cpu::throwException(Device::Cpu::Exception::ILLEGAL_STATE, "Unable to find a suiting graphics driver for this machine!");
-    }
-
+    auto &platform = Platform::getInstance();
     auto resolution = terminalProvider->searchMode(100, 37, 24);
     auto &terminal = terminalProvider->initializeTerminal(resolution);
     auto terminalStream = Util::Stream::TerminalOutputStream(terminal);
@@ -74,7 +39,8 @@ void GatesOfHell::enter() {
                  << "Version: " << BuildConfig::getVersion() << " (" << BuildConfig::getGitBranch() << ")"
                  << Util::Stream::StringFormatOutputStream::endl
                  << "Git revision: " << BuildConfig::getGitRevision() << Util::Stream::StringFormatOutputStream::endl
-                 << "Build date: " << BuildConfig::getBuildDate() << Util::Stream::StringFormatOutputStream::endl;
+                 << "Build date: " << BuildConfig::getBuildDate() << Util::Stream::StringFormatOutputStream::endl
+                 << "Platform: " << platform.getName() << Util::Stream::StringFormatOutputStream::endl;
 
     Device::Cpu::halt();
 }

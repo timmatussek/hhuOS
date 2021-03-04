@@ -19,6 +19,7 @@
 #define HHUOS_STRINGFORMATOUTPUTSTREAM_H
 
 #include <util/async/Atomic.h>
+#include <util/memory/String.h>
 #include "FilterOutputStream.h"
 
 namespace Util::Stream {
@@ -58,6 +59,13 @@ public:
      * @param string The string.
      */
     StringFormatOutputStream& operator<<(const char *string);
+
+    /**
+     * Write the string representation of a null-terminated string.
+     *
+     * @param string The string.
+     */
+    StringFormatOutputStream& operator<<(const Util::Memory::String &string);
 
     /**
      * Write the string representation of a short integer.

@@ -16,7 +16,6 @@
  */
 
 #include "System.h"
-#include "Symbols.h"
 #include "device/cpu/Cpu.h"
 
 namespace Kernel {

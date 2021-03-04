@@ -1,0 +1,7 @@
+export readonly CONST_QEMU_BIN="qemu-system-i386"
+export readonly CONST_QEMU_MACHINE="pc"
+export readonly CONST_QEMU_CPU="486"
+export readonly CONST_QEMU_MIN_RAM="16M"
+export readonly CONST_QEMU_BIOS=""
+export readonly CONST_GDB_ARCHITECTURE="i386"
+export readonly CONST_GDB_DISASSEMBLY_FLAVOR="intel"

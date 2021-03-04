@@ -27,8 +27,8 @@ BitmapMemoryManager::~BitmapMemoryManager() {
     delete bitmap;
 }
 
-void BitmapMemoryManager::init(uint32_t memoryStartAddress, uint32_t memoryEndAddress, bool doUnmap) {
-    MemoryManager::init(memoryStartAddress, memoryEndAddress, doUnmap);
+void BitmapMemoryManager::init(uint32_t memoryStartAddress, uint32_t memoryEndAddress) {
+    MemoryManager::init(memoryStartAddress, memoryEndAddress);
 
     bitmap = new Util::Memory::Bitmap((memoryEndAddress - memoryStartAddress) / blockSize);
 

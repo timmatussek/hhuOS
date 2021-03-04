@@ -25,6 +25,14 @@ StringFormatOutputStream& StringFormatOutputStream::operator<<(const char *strin
     return *this;
 }
 
+StringFormatOutputStream &StringFormatOutputStream::operator<<(const Memory::String &string) {
+    for (uint32_t i = 0; i < string.length(); i++) {
+        write(string[i]);
+    }
+
+    return *this;
+}
+
 StringFormatOutputStream& StringFormatOutputStream::operator<<(int16_t value) {
     return *this << (int32_t) value;
 }

@@ -61,7 +61,7 @@ public:
     /**
      * Overriding function from MemoryManager.
      */
-    void init(uint32_t memoryStartAddress, uint32_t memoryEndAddress, bool doUnmap) override;
+    void init(uint32_t memoryStartAddress, uint32_t memoryEndAddress) override;
 
     /**
      * Overriding function from MemoryManager.
@@ -110,7 +110,6 @@ private:
 
     /**
      * Implementation of the allocation algorithm, that is used in the alloc-functions.
-     *
      * The first-fit algorithm is used to search for a fitting chunk of free memory.
      *
      * @param size Size of the chunk of memory to be allocated
@@ -142,7 +141,7 @@ private:
      *
      * @return Header of the free chunk with the required size or nullptr, if none is found
      */
-    FreeListHeader *findNext(FreeListHeader *start, uint32_t reqSize);
+    static FreeListHeader *findNext(FreeListHeader *start, uint32_t reqSize);
 
     /**
      * Merge a chunk of free memory with it's neighbours, if possible.
@@ -151,11 +150,9 @@ private:
      */
     FreeListHeader *merge(FreeListHeader *origin);
 
-    static const constexpr char *CLASS_NAME = "Kernel::FreeListMemoryManager";
-
     static const constexpr uint32_t MIN_BLOCK_SIZE = 4;
-
     static const constexpr uint32_t HEADER_SIZE = sizeof(FreeListHeader);
+    static const constexpr char *CLASS_NAME = "Kernel::FreeListMemoryManager";
 };
 
 }

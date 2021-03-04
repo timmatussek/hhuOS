@@ -16,15 +16,12 @@
  */
 
 #include <util/memory/Address.h>
-#include "kernel/memory/Paging.h"
 #include "FreeListMemoryManager.h"
-
-#include "kernel/core/Management.h"
 
 namespace Kernel {
 
-void FreeListMemoryManager::init(uint32_t memoryStartAddress, uint32_t memoryEndAddress, bool doUnmap) {
-    MemoryManager::init(memoryStartAddress, memoryEndAddress, doUnmap);
+void FreeListMemoryManager::init(uint32_t memoryStartAddress, uint32_t memoryEndAddress) {
+    MemoryManager::init(memoryStartAddress, memoryEndAddress);
 
     if (freeMemory < sizeof(FreeListHeader)) {
         // Available Kernel-Memory is too small for a Chunk
@@ -54,9 +51,7 @@ void FreeListMemoryManager::free(void *ptr) {
 
 void FreeListMemoryManager::free(void *ptr, uint32_t alignment) {
     lock.acquire();
-
     freeAlgorithm(ptr);
-
     lock.release();
 }
 
@@ -79,7 +74,7 @@ FreeListMemoryManager::FreeListHeader *FreeListMemoryManager::findNext(FreeListH
 void *FreeListMemoryManager::allocAlgorithm(uint32_t size, uint32_t alignment, FreeListHeader *startChunk) {
     // check for invalid requests
     if (size == 0) {
-        return nullptr;
+        Device::Cpu::throwException(Device::Cpu::Exception::NULL_POINTER, "FreeListMemoryManager: Trying to allocate 0 byte!");
     }
 
     if (startChunk == nullptr) {
@@ -136,7 +131,7 @@ void *FreeListMemoryManager::allocAlgorithm(uint32_t size, uint32_t alignment, F
 
     // No memory left
     if (current == nullptr) {
-        return nullptr;
+        Device::Cpu::throwException(Device::Cpu::Exception::NULL_POINTER, "FreeListMemoryManager: Not enough free memory!");
     }
 
     // Check if the chosen chunk can be sliced in two parts
@@ -181,13 +176,9 @@ void *FreeListMemoryManager::allocAlgorithm(uint32_t size, uint32_t alignment, F
 }
 
 void FreeListMemoryManager::freeAlgorithm(void *ptr) {
-    // check for nullpointer
-    if (ptr == nullptr) {
-        return;
-    }
     // check if address points to valid memory for this manager
     if ((uint32_t) ptr < memoryStartAddress || (uint32_t) ptr > memoryEndAddress) {
-        return;
+        Device::Cpu::throwException(Device::Cpu::Exception::NULL_POINTER, "FreeListMemoryManager: Trying to free an address outside of the heap!");
     }
 
     // get pointer to header of allocated block
@@ -228,16 +219,16 @@ void FreeListMemoryManager::freeAlgorithm(void *ptr) {
     }
 
     // merge freed block of memory with neighbours if possible
-    FreeListHeader *mergedHeader = merge(header);
+    merge(header);
 
     // if the free chunk has more than 4KB of memory, a page can possibly be unmapped
-    if (doUnmap && mergedHeader->size >= PAGESIZE && Management::isInitialized()) {
+    /*if (doUnmap && mergedHeader->size >= PAGESIZE && Management::isInitialized()) {
         auto addr = (uint32_t) mergedHeader;
         auto chunkEndAddr = addr + (HEADER_SIZE + mergedHeader->size);
 
         // try to unmap the free memory, not the list header!
         Management::getInstance().unmap(addr + HEADER_SIZE, chunkEndAddr - 1);
-    }
+    }*/
 }
 
 /**

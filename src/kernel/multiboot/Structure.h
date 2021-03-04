@@ -29,22 +29,6 @@ namespace Kernel::Multiboot {
 
     public:
 
-        static uint32_t usedBytes;
-
-        enum BlockType : uint8_t {
-            MULTIBOOT_RESERVED = 0x00,
-            HEAP_RESERVED = 0x01,
-            PAGING_RESERVED = 0x02
-        };
-
-        struct MemoryBlock {
-            uint32_t startAddress;
-            uint32_t virtualStartAddress;
-            uint32_t lengthInBytes;
-            uint32_t blockCount;
-            BlockType type;
-        };
-
         Structure() = delete;
 
         Structure(const Structure &other) = delete;
@@ -53,61 +37,19 @@ namespace Kernel::Multiboot {
 
         ~Structure() = delete;
 
-        static void copyMultibootInfo(Info *source, uint8_t *destination, uint32_t maxBytes);
-
-        static void readMemoryMap(Info *address);
+        static void init(Multiboot::Info *address);
 
         static void parse();
 
-        static void init(Multiboot::Info *address);
-
-        static Multiboot::ModuleInfo getModule(const Util::Memory::String &module);
-
-        static Util::Data::Array<Multiboot::MemoryMapEntry> getMemoryMap();
-
         static FrameBufferInfo getFrameBufferInfo();
-
-        static bool isModuleLoaded(const Util::Memory::String &module);
-
-        static bool hasKernelOption(const Util::Memory::String &key);
-
-        static Util::Memory::String getKernelOption(const Util::Memory::String &key);
-
-        static uint32_t physReservedMemoryEnd;
-
-        static uint32_t physReservedMemoryStart;
-
-        static MemoryBlock blockMap[256];
 
         static Info info;
 
     private:
 
-        static void parseCommandLine();
-
-        static void parseMemoryMap();
-
-        static void parseSymbols();
-
-        static void parseModules();
-
         static void parseFrameBufferInfo();
 
-        static Util::Data::HashMap<Util::Memory::String, Multiboot::ModuleInfo> modules;
-
-        static Util::Data::HashMap<Util::Memory::String, Util::Memory::String> kernelOptions;
-
-        static Util::Data::ArrayList<Multiboot::MemoryMapEntry> memoryMap;
-
-        static MemoryMapEntry customMemoryMap[256];
-
         static FrameBufferInfo frameBufferInfo;
-
-        static uint32_t customMemoryMapSize;
-
-        static uint32_t kernelCopyLow;
-
-        static uint32_t kernelCopyHigh;
     };
 }
 

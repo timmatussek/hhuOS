@@ -1,25 +1,12 @@
 #!/bin/bash
 
-readonly CONST_QEMU_BIN_I386="qemu-system-i386"
-readonly CONST_QEMU_BIN_X86_64="qemu-system-x86_64"
-readonly CONST_QEMU_MACHINE_PC="pc"
-readonly CONST_QEMU_MACHINE_PC_KVM="pc,accel=kvm,kernel-irqchip=off"
-readonly CONST_QEMU_MIN_BIOS_CPU="486"
-readonly CONST_QEMU_MIN_EFI_CPU="pentium"
-readonly CONST_QEMU_MIN_BIOS_RAM="16M"
-readonly CONST_QEMU_MIN_EFI_RAM="64M"
-readonly CONST_QEMU_BIOS_PC=""
-readonly CONST_QEMU_BIOS_EFI="/usr/share/edk2-ovmf/ia32/OVMF.fd"
+readonly CONST_PLATFORM=${PLATFORM:-"x86/bios"}
 readonly CONST_QEMU_ARGS="-boot d -cdrom hhuOS.iso -vga std -monitor stdio"
 
-QEMU_BIN="${CONST_QEMU_BIN_I386}"
-QEMU_MACHINE="${CONST_QEMU_MACHINE_PC}"
-QEMU_BIOS="${CONST_QEMU_BIOS_PC}"
-QEMU_MIN_RAM="${CONST_QEMU_MIN_BIOS_RAM}"
-QEMU_RAM=""
-QEMU_CPU="${CONST_QEMU_MIN_BIOS_CPU}"
-QEMU_ARGS="${CONST_QEMU_ARGS}"
+# shellcheck disable=SC1090
+source "platform/${CONST_PLATFORM}/run.sh"
 
+QEMU_RAM="${CONST_QEMU_MIN_RAM}"
 QEMU_GDB_PORT=""
 
 check_file() {
@@ -27,49 +14,6 @@ check_file() {
 
   if [ ! -f "$file" ]; then
     printf "File '%s' does not exist! Did you run build.sh?\\n" "${file}"
-    exit 1
-  fi
-}
-
-parse_architecture() {
-  local architecture=$1
-
-  if [ "${architecture}" == "i386" ] || [ "${architecture}" == "x86" ]; then
-    QEMU_BIN="${CONST_QEMU_BIN_I386}"
-  elif [ "${architecture}" == "x86_64" ] || [ "${architecture}" == "x64" ]; then
-    QEMU_BIN="${CONST_QEMU_BIN_X86_64}"
-  else
-    printf "Invalid architecture '%s'!\\n" "${architecture}"
-    exit 1
-  fi
-}
-
-parse_machine() {
-  local machine=$1
-
-  if [ "${machine}" == "pc" ]; then
-    QEMU_MACHINE="${CONST_QEMU_MACHINE_PC}"
-  elif [ "${machine}" == "pc-kvm" ]; then
-    QEMU_MACHINE="${CONST_QEMU_MACHINE_PC_KVM}"
-  else
-    printf "Invalid machine '%s'!\\n" "${machine}"
-    exit 1
-  fi
-}
-
-parse_bios() {
-  local bios=$1
-
-  if [ "${bios}" == "bios" ] || [ "${bios}" == "default" ]; then
-    QEMU_BIOS="${CONST_QEMU_BIOS_PC}"
-    QEMU_CPU="${CONST_QEMU_MIN_BIOS_CPU}"
-    QEMU_MIN_RAM="${CONST_QEMU_MIN_BIOS_RAM}"
-  elif [ "${bios}" == "efi" ]; then
-    QEMU_BIOS="${CONST_QEMU_BIOS_EFI}"
-    QEMU_CPU="${CONST_QEMU_MIN_EFI_CPU}"
-    QEMU_MIN_RAM="${CONST_QEMU_MIN_EFI_RAM}"
-  else
-    printf "Invalid BIOS '%s'!\\n" "${machine}"
     exit 1
   fi
 }
@@ -82,16 +26,24 @@ parse_ram() {
 
 parse_debug() {
   local port=$1
+  local config=""
 
-  echo "set architecture i386
-      set disassembly-flavor intel
-      target remote 127.0.0.1:${port}" >/tmp/gdbcommands."$(id -u)"
+  if [ -n "${CONST_GDB_ARCHITECTURE}" ]; then
+    config="${config}set architecture ${CONST_GDB_ARCHITECTURE}\\n"
+  fi
+
+  if [ -n "${CONST_GDB_DISASSEMBLY_FLAVOR}" ]; then
+    config="${config}set disassembly-flavor ${CONST_GDB_DISASSEMBLY_FLAVOR}\\n"
+  fi
+
+  config="${config}target remote 127.0.0.1:${port}"
+  echo "${config}" >/tmp/gdbcommands."$(id -u)"
 
   QEMU_GDB_PORT="${port}"
 }
 
 start_gdb() {
-  gdb -x "/tmp/gdbcommands.$(id -u)" "loader/boot/hhuOS.bin"
+  gdb -x "/tmp/gdbcommands.$(id -u)" "src/${PLATFORM}/loader/boot/hhuOS.bin"
   exit $?
 }
 
@@ -118,15 +70,6 @@ parse_args() {
     local val=$2
 
     case $arg in
-    -a | --architecture)
-      parse_architecture "$val"
-      ;;
-    -m | --machine)
-      parse_machine "$val"
-      ;;
-    -b | --bios)
-      parse_bios "$val"
-      ;;
     -r | --ram)
       parse_ram "$val"
       ;;
@@ -151,22 +94,24 @@ parse_args() {
 }
 
 run_qemu() {
-  local command="${QEMU_BIN}"
+  local command="${CONST_QEMU_BIN} ${CONST_QEMU_ARGS}"
 
-  if [ -n "${QEMU_MACHINE}" ]; then
-    command="${command} -machine ${QEMU_MACHINE}"
+  if [ -n "${CONST_QEMU_MACHINE}" ]; then
+    command="${command} -machine ${CONST_QEMU_MACHINE}"
   fi
 
-  if [ -n "${QEMU_BIOS}" ]; then
-    command="${command} -bios ${QEMU_BIOS}"
+  if [ -n "${CONST_QEMU_CPU}" ]; then
+    command="${command} -cpu ${CONST_QEMU_CPU}"
   fi
 
-  if [ ! -n "${QEMU_RAM}" ]; then
-    QEMU_RAM="${QEMU_MIN_RAM}"
+  if [ -n "${QEMU_RAM}" ]; then
+    command="${command} -m ${QEMU_RAM}"
   fi
 
-  command="${command} -m ${QEMU_RAM} -cpu ${QEMU_CPU} ${QEMU_ARGS}"
-  
+  if [ -n "${CONST_QEMU_BIOS}" ]; then
+    command="${command} -bios ${CONST_QEMU_BIOS}"
+  fi
+
   printf "Running: %s\\n" "${command}"
 
   if [ -n "${QEMU_GDB_PORT}" ]; then

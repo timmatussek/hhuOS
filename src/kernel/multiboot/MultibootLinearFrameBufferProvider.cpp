@@ -1,10 +1,9 @@
-#include <kernel/core/Management.h>
 #include "MultibootLinearFrameBufferProvider.h"
 #include "Structure.h"
 
 namespace Kernel::Multiboot {
 
-MultibootLinearFrameBufferProvider::MultibootLinearFrameBufferProvider() : frameBufferInfo(Structure::getFrameBufferInfo()), supportedModes(1) {
+MultibootLinearFrameBufferProvider::MultibootLinearFrameBufferProvider() : frameBufferInfo(), supportedModes(1) {
     supportedModes[0] = {frameBufferInfo.width, frameBufferInfo.height, frameBufferInfo.bpp, frameBufferInfo.pitch, 0};
 }
 
@@ -18,9 +17,8 @@ Util::Graphic::LinearFrameBuffer& MultibootLinearFrameBufferProvider::initialize
         Device::Cpu::throwException(Device::Cpu::Exception::UNSUPPORTED_OPERATION, "LFB mode has not been setup correctly by the bootloader!");
     }
 
-    // Map frame buffer into IO memory
-    auto frameBuffer = Kernel::Management::getInstance().mapIO(frameBufferInfo.address, frameBufferInfo.pitch * frameBufferInfo.height);
-    return *new Util::Graphic::LinearFrameBuffer(frameBuffer, frameBufferInfo.width, frameBufferInfo.height, frameBufferInfo.bpp, frameBufferInfo.pitch);
+    // TODO: Map framebuffer into IO memory
+    return *new Util::Graphic::LinearFrameBuffer(reinterpret_cast<void*>(frameBufferInfo.address), frameBufferInfo.width, frameBufferInfo.height, frameBufferInfo.bpp, frameBufferInfo.pitch);
 }
 
 void MultibootLinearFrameBufferProvider::destroyLinearFrameBuffer(Util::Graphic::LinearFrameBuffer &lfb) {

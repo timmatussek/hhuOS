@@ -34,15 +34,6 @@ namespace Kernel {
  */
 class MemoryManager : public Util::Reflection::Prototype {
 
-protected:
-
-    uint32_t memoryStartAddress = 0;
-    uint32_t memoryEndAddress = 0;
-
-    uint32_t freeMemory = 0;
-
-    bool doUnmap = false;
-
 public:
 
     /**
@@ -72,7 +63,7 @@ public:
      * @param memoryEndAddress End address of the memory area to manage
      * @param doUnmap Indicates, whether or not the manager should unmap freed memory by itself
      */
-    virtual void init(uint32_t memoryStartAddress, uint32_t memoryEndAddress, bool doUnmap);
+    virtual void init(uint32_t memoryStartAddress, uint32_t memoryEndAddress);
 
     /**
      * Allocate a chunk of memory of a given size.
@@ -130,6 +121,7 @@ public:
      * Free an allocated block of memory.
      *
      * @param ptr Pointer to chunk of memory memory to be freed
+     * @return The size of the freed chunk of memory
      */
     virtual void free(void *ptr);
 
@@ -138,6 +130,7 @@ public:
 	 *
      * @param ptr Pointer to chunk of memory memory to be freed
 	 * @param alignment Alignment of the chunk
+     * @return The size of the freed chunk of memory
 	 */
     virtual void free(void *ptr, uint32_t alignment);
 
@@ -155,6 +148,12 @@ public:
      * Get the amount of free memory.
      */
     uint32_t getFreeMemory();
+
+protected:
+
+    uint32_t memoryStartAddress = 0;
+    uint32_t memoryEndAddress = 0;
+    uint32_t freeMemory = 0;
 };
 
 }

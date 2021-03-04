@@ -74,13 +74,6 @@ public:
     [[noreturn]] static void halt();
 
     /**
-     * Read the time stamp counter.
-     *
-     * @return The current time stamp counter value.
-     */
-    static unsigned long long int rdtsc();
-
-    /**
      * Enumeration of all hardware exceptions
      */
     enum class Error : uint32_t {

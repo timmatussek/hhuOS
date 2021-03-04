@@ -65,7 +65,7 @@ public:
     /**
      * Overriding function from MemoryManager.
      */
-    void init(uint32_t memoryStartAddress, uint32_t memoryEndAddress, bool doUnmap) override;
+    void init(uint32_t memoryStartAddress, uint32_t memoryEndAddress) override;
 
     /**
      * Overriding function from memory manager.

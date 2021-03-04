@@ -17,9 +17,6 @@
 cmake_minimum_required(VERSION 3.7)
  
 target_sources(device PUBLIC
-        ${HHUOS_SRC_DIR}/device/graphic/ColorGraphicsArray.cpp
-        ${HHUOS_SRC_DIR}/device/graphic/ColorGraphicsArrayProvider.cpp
         ${HHUOS_SRC_DIR}/device/graphic/LinearFrameBufferProvider.cpp
         ${HHUOS_SRC_DIR}/device/graphic/LinearFrameBufferTerminalProvider.cpp
-        ${HHUOS_SRC_DIR}/device/graphic/TerminalProvider.cpp
-        ${HHUOS_SRC_DIR}/device/graphic/VesaBiosExtensions.cpp)
+        ${HHUOS_SRC_DIR}/device/graphic/TerminalProvider.cpp)

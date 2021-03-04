@@ -31,4 +31,4 @@ add_subdirectory(memory)
 add_subdirectory(reflection)
 add_subdirectory(stream)
 
-target_link_libraries(${PROJECT_NAME} kernel)
+target_link_libraries(${PROJECT_NAME})

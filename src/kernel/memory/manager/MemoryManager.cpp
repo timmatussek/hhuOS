@@ -20,10 +20,9 @@
 
 namespace Kernel {
 
-void MemoryManager::init(uint32_t memoryStartAddress, uint32_t memoryEndAddress, bool doUnmap) {
+void MemoryManager::init(uint32_t memoryStartAddress, uint32_t memoryEndAddress) {
     this->memoryStartAddress = memoryStartAddress;
     this->memoryEndAddress = memoryEndAddress;
-    this->doUnmap = doUnmap;
 
     freeMemory = memoryEndAddress - memoryStartAddress;
 }
