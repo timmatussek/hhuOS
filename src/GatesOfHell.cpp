@@ -30,6 +30,7 @@
 #include <lib/system/SimpleResult.h>
 #include "kernel/memory/manager/StaticHeapMemoryManager.h"
 #include "filesystem/fat/FatDriver.h"
+#include "filesystem/lfs/LfsDriver.h"
 #include "device/graphic/vesa/VesaGraphics.h"
 #include "device/graphic/vesa/VesaText.h"
 #include "device/sound/soundblaster/SoundBlaster.h"
@@ -292,6 +293,7 @@ void GatesOfHell::afterInitrdModHook() {
     }
 
     FsDriver::registerPrototype(new FatDriver());
+    FsDriver::registerPrototype(new LfsDriver());
 
     Kernel::MemoryManager::registerPrototype(new Kernel::StaticHeapMemoryManager());
 

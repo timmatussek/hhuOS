@@ -26,5 +26,6 @@ add_subdirectory(core)
 add_subdirectory(ram)
 add_subdirectory(tar)
 add_subdirectory(fat)
+add_subdirectory(lfs)
 
 target_link_libraries(${PROJECT_NAME} device kernel lib)
