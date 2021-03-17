@@ -18,30 +18,31 @@
 
 String LfsNode::getName()
 {
-    return "";
+    Util::Array<String> token = path.split(Filesystem::SEPARATOR);
+    return token[token.length() - 1];
 }
 
 uint8_t LfsNode::getFileType()
 {
-    return 0;
+    return this->lfs->getFileType(path);
 }
 
 uint64_t LfsNode::getLength()
 {
-    return 0;
+    return this->lfs->getLength(path);
 }
 
 Util::Array<String> LfsNode::getChildren()
 {
-    return Util::Array<String>(0);
+    return this->lfs->getChildren(path);
 }
 
 uint64_t LfsNode::readData(char *buf, uint64_t pos, uint64_t numBytes)
 {
-    return 0;
+    return this->lfs->readData(path, buf, pos, numBytes);
 }
 
 uint64_t LfsNode::writeData(char *buf, uint64_t pos, uint64_t length)
 {
-    return 0;
+    return this->lfs->writeData(path, buf, pos, length);
 }

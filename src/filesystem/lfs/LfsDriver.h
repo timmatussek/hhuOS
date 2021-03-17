@@ -18,6 +18,7 @@
 #define __LfsDriver_include__
 
 #include "filesystem/core/FsDriver.h"
+#include "Lfs.h"
 
 extern "C"
 {
@@ -30,7 +31,7 @@ extern "C"
 class LfsDriver : public FsDriver
 {
 private:
-    StorageDevice *device = nullptr;
+    Lfs *lfs = nullptr;
 
     static const constexpr char *TYPE_NAME = "LfsDriver";
 

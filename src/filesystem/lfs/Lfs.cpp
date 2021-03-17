@@ -14,40 +14,66 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
-#include "LfsDriver.h"
-#include "LfsNode.h"
+#include "Lfs.h"
 
-String LfsDriver::getTypeName()
+Lfs::Lfs(StorageDevice *device) : device(device)
 {
-    return TYPE_NAME;
+    if (!readLfsFromDevice())
+    {
+        reset();
+    }
 }
 
-bool LfsDriver::createFs(StorageDevice *device)
+Lfs::~Lfs()
 {
-    Lfs *tmpLfs = new Lfs(device);
-    tmpLfs->reset();
-    bool res = tmpLfs->flush();
-    delete tmpLfs;
-    return res;
+    flush();
 }
 
-bool LfsDriver::mount(StorageDevice *device)
+void Lfs::reset()
 {
-    this->lfs = new Lfs(device);
+}
+
+bool Lfs::flush()
+{
     return false;
 }
 
-Util::SmartPointer<FsNode> LfsDriver::getNode(const String &path)
+uint64_t Lfs::readData(const String &path, char *buf, uint64_t pos, uint64_t numBytes)
 {
-    return Util::SmartPointer<FsNode>(new LfsNode(this->lfs, path));
+    return 0;
 }
 
-bool LfsDriver::createNode(const String &path, uint8_t fileType)
+uint64_t Lfs::writeData(const String &path, char *buf, uint64_t pos, uint64_t length)
 {
-    return this->lfs->createNode(path, fileType);
+    return 0;
 }
 
-bool LfsDriver::deleteNode(const String &path)
+bool Lfs::createNode(const String &path, uint8_t fileType)
 {
-    return this->lfs->deleteNode(path);
+    return false;
+}
+
+bool Lfs::deleteNode(const String &path)
+{
+    return false;
+}
+
+uint8_t Lfs::getFileType(const String &path)
+{
+    return 0;
+}
+
+uint64_t Lfs::getLength(const String &path)
+{
+    return 0;
+}
+
+Util::Array<String> Lfs::getChildren(const String &path)
+{
+    return Util::Array<String>(0);
+}
+
+bool Lfs::readLfsFromDevice()
+{
+    return false;
 }

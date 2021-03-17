@@ -17,15 +17,21 @@
 #ifndef __LfsNode_include__
 #define __LfsNode_include__
 
+#include "filesystem/core/Filesystem.h"
 #include "filesystem/core/FsNode.h"
+#include "Lfs.h"
 
 class LfsNode : public FsNode
 {
+private:
+    Lfs *lfs = nullptr;
+    String path;
+
 public:
     /**
      * Constructor.
      */
-    LfsNode() = default;
+    LfsNode(Lfs *lfs, const String &path) : lfs(lfs), path(path) {}
 
     /**
      * Destructor.
