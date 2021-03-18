@@ -34,7 +34,7 @@ bool LfsDriver::createFs(StorageDevice *device)
 bool LfsDriver::mount(StorageDevice *device)
 {
     this->lfs = new Lfs(device);
-    return false;
+    return this->lfs->isValid();
 }
 
 Util::SmartPointer<FsNode> LfsDriver::getNode(const String &path)

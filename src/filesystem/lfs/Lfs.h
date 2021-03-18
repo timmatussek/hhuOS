@@ -18,10 +18,190 @@
 
 #include "filesystem/core/FsDriver.h"
 
+/**
+ * Magic number to identify valid lfs.
+ */
+#define LFS_MAGIC 0x4c465321
+
+/**
+ * Smallest addressable unit of lfs.
+ */
+#define BLOCK_SIZE 4096
+
+/**
+ * The superblock contains information about the filesystem.
+ * It is always at block 0.
+ */
+struct Superblock
+{
+    /**
+     * Magic number to identify valid lfs.
+     */
+    uint32_t magic;
+
+    /**
+     * The starting block of the current inode map.
+     */
+    uint64_t inodeMapPosition;
+
+    /**
+     * The size in blocks of the current inode map.
+     */
+    uint64_t inodeMapSize;
+
+    /**
+     * The segment number of the next empty segment.
+     */
+    uint64_t currentSegment;
+};
+
+/**
+ * The inode map contains the position of each active inode.
+ */
+struct InodeMapEntry
+{
+    /**
+     * The block the inode is stored in.
+     */
+    uint64_t inodePosition;
+
+    /**
+     * The offset inside the block.
+     */
+    uint32_t inodeOffset;
+};
+
+/**
+ * An inode contains metadata and data blocks of a file or directory.
+ */
+struct Inode
+{
+    /**
+     * True if the in-memory inode changed and needs to be written to disk.
+     */
+    bool dirty;
+
+    /**
+     * Size in bytes of the file. Always 0 for directories.
+     */
+    uint64_t size;
+
+    /**
+     * Filetype of file.
+     */
+    uint8_t fileType;
+
+    /**
+     * Pointers to data blocks.
+     */
+    uint64_t directBlocks[10];
+
+    /**
+     * Pointer to a block containing pointers to data blocks.
+     */
+    uint64_t indirectBlocks;
+
+    /**
+     * Pointer to a block containing pointers to blocks containing pointers to data blocks.
+     */
+    uint64_t doublyIndirectBlocks;
+};
+
+/**
+ * An data block contains actual data of a file.
+ */
+struct DataBlock
+{
+    /**
+     * True if the in-memory datablock changed and needs to be written to disk.
+     */
+    bool dirty;
+
+    /**
+     * The actual bytes of data.
+     */
+    uint8_t data[BLOCK_SIZE];
+};
+
 class Lfs
 {
 private:
+    /**
+     * The device this fielsystem is read from or written to.
+     */
     StorageDevice *device = nullptr;
+
+    /**
+     * True if device currently contains a valid lfs.
+     */
+    bool valid;
+
+    /**
+     * Superblock of current lfs.
+     */
+    Superblock superblock;
+
+    /**
+     * Device Sectors per lfs block.
+     */
+    size_t sectorsPerBlock;
+
+    /**
+     * In-memory cache of inode map.
+     */
+    Util::HashMap<uint64_t, InodeMapEntry> inodeMap;
+
+    /**
+     * In-memory cache of inodes.
+     * 
+     * TODO cache eviction
+     */
+    Util::HashMap<uint64_t, Inode> inodeCache;
+
+    /**
+     * In-memory cache of blocks.
+     * 
+     * TODO cache eviction
+     */
+    Util::HashMap<uint64_t, DataBlock> blockCache;
+
+    /**
+     * Read a uint32_t in little-endian at offset from buffer.
+     * 
+     * @param buffer A buffer containing bytes.
+     * @param offset An offset in bytes into buffer.
+     * 
+     * @return uint32_t value at offset in buffer
+     */
+    uint32_t readU32(uint8_t *buffer, size_t offset);
+
+    /**
+     * Read a uint64_t in little-endian at offset from buffer.
+     * 
+     * @param buffer A buffer containing bytes.
+     * @param offset An offset in bytes into buffer.
+     * 
+     * @return uint64_t value at offset in buffer
+     */
+    uint64_t readU64(uint8_t *buffer, size_t offset);
+
+    /**
+     * Find the inode number of a path.
+     * 
+     * @param path A path to a file or directory.
+     * 
+     * @return Inode number of path. 0 if not found.
+     */
+    uint64_t getInodeNumber(const String &path);
+
+    /**
+     * Find the inode of a inode number.
+     * 
+     * @param inodeNumber A inode number.
+     * 
+     * @return Inode of inodeNumber.
+     */
+    Inode getInode(uint64_t inodeNumber);
 
     /**
      * Initilize caches with data from disk
@@ -123,6 +303,11 @@ public:
      * @param path The path to a file
      */
     Util::Array<String> getChildren(const String &path);
+
+    /**
+     * Get if device contains a valid lfs.
+     */
+    bool isValid();
 };
 
 #endif
