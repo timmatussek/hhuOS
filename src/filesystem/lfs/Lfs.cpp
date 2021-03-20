@@ -15,6 +15,7 @@
  */
 
 #include "Lfs.h"
+#include "filesystem/core/Filesystem.h"
 
 Lfs::Lfs(StorageDevice *device) : device(device)
 {
@@ -35,16 +36,13 @@ void Lfs::reset()
     superblock.inodeMapSize = 0;
     superblock.currentSegment = 0;
 
-    // reset inode map
+    // reset caches
     inodeMap.clear();
-
-    // reset inode cache
     inodeCache.clear();
-
-    // reset block cache
     blockCache.clear();
 
     // add empty root dir; root dir is always inode number 1
+    // TODO add . and .. (both pointing to / itself)
     Inode rootDir = {
         .dirty = true,
         .size = 0,
@@ -116,8 +114,26 @@ uint64_t Lfs::getLength(const String &path)
 
 Util::Array<String> Lfs::getChildren(const String &path)
 {
-    // TODO
-    return Util::Array<String>(0);
+    uint64_t inodeNumber = getInodeNumber(path);
+
+    if(inodeNumber == 0) {
+        return Util::Array<String>(0);
+    }
+
+    Inode inode = getInode(inodeNumber);
+
+    if(inode.fileType != FsNode::FileType::DIRECTORY_FILE) {
+        return Util::Array<String>(0);
+    }
+
+    Util::Array<DirectoryEntry> directoryEntries = readDirectoryEntries(inode);
+
+    Util::Array<String> res = Util::Array<String>(directoryEntries.length());
+    for(int i = 0; i < directoryEntries.length(); i++) {
+        res[i] = directoryEntries[i].filename;
+    }
+
+    return res;
 }
 
 bool Lfs::isValid()
@@ -137,14 +153,69 @@ uint64_t Lfs::readU64(uint8_t *buffer, size_t offset)
 
 uint64_t Lfs::getInodeNumber(const String &path)
 {
-    // TODO
-    return 0;
+    // split the path to search left to right
+    Util::Array<String> token = path.split(Filesystem::SEPARATOR);
+
+    // starting at root directory (always inode 1)
+    uint64_t currentInodeNumber = 1;
+
+    for(int i = 0; i < token.length(); i++) {
+        // find token[i] in currentDir
+        Inode currentDir = getInode(currentInodeNumber);
+
+        Util::Array<DirectoryEntry> directoryEntries = readDirectoryEntries(currentDir);
+
+        // check if token[i] is in current dir
+        bool found = false;
+        for(int i = 0; i < directoryEntries.length(); i++) {
+            if(directoryEntries[i].filename == token[i]) {
+                currentInodeNumber = directoryEntries[i].inodeNumber;
+                found = true;
+                break;
+            }
+        }
+
+        if(!found) {
+            return 0;
+        }
+    }
+
+    return currentInodeNumber;
 }
 
 Inode Lfs::getInode(uint64_t inodeNumber)
 {
-    // TODO
-    return Inode{};
+    // check if inode is cached
+    if(inodeCache.containsKey(inodeNumber)) {
+        return inodeCache.get(inodeNumber);
+    } else {
+        // else load it from disk
+        InodeMapEntry entry = inodeMap.get(inodeNumber);
+
+        uint8_t inodeBuffer[BLOCK_SIZE];
+        device->read(inodeBuffer, entry.inodePosition, BLOCK_SIZE);
+
+        Inode inode;
+        inode.size = readU64(inodeBuffer, 0);
+        inode.fileType = inodeBuffer[8];
+        inode.directBlocks[0] = readU64(inodeBuffer, 9);
+        inode.directBlocks[1] = readU64(inodeBuffer, 17);
+        inode.directBlocks[2] = readU64(inodeBuffer, 25);
+        inode.directBlocks[3] = readU64(inodeBuffer, 33);
+        inode.directBlocks[4] = readU64(inodeBuffer, 41);
+        inode.directBlocks[5] = readU64(inodeBuffer, 49);
+        inode.directBlocks[6] = readU64(inodeBuffer, 57);
+        inode.directBlocks[7] = readU64(inodeBuffer, 65);
+        inode.directBlocks[8] = readU64(inodeBuffer, 73);
+        inode.directBlocks[9] = readU64(inodeBuffer, 81);
+        inode.indirectBlocks = readU64(inodeBuffer, 89);
+        inode.doublyIndirectBlocks = readU64(inodeBuffer, 97);
+
+        // add to cache
+        inodeCache.put(inodeNumber, inode);
+
+        return inode;
+    }
 }
 
 bool Lfs::readLfsFromDevice()
@@ -186,3 +257,9 @@ bool Lfs::readLfsFromDevice()
 
     return true;
 }
+
+Util::Array<DirectoryEntry> Lfs::readDirectoryEntries(Inode &dir) {
+    // TODO
+    return Util::Array<DirectoryEntry>(0);
+}
+

@@ -108,7 +108,7 @@ struct Inode
 };
 
 /**
- * An data block contains actual data of a file.
+ * A data block contains actual data of a file.
  */
 struct DataBlock
 {
@@ -121,6 +121,21 @@ struct DataBlock
      * The actual bytes of data.
      */
     uint8_t data[BLOCK_SIZE];
+};
+
+/**
+ * A directory contains a list of directory entries.
+ */
+struct DirectoryEntry {
+    /**
+     * Inode number of entry
+     */
+    uint64_t inodeNumber;
+
+    /**
+     * Filename of entry
+     */
+    String filename;
 };
 
 class Lfs
@@ -209,6 +224,13 @@ private:
      * @return false if disk does not conatin a valid lfs
      */
     bool readLfsFromDevice();
+
+     /**
+     * Reads all directory entries of a directory.
+     * 
+     * @return an array of directory entries
+     */
+    Util::Array<DirectoryEntry> readDirectoryEntries(Inode &dir);
 
 public:
     /**
