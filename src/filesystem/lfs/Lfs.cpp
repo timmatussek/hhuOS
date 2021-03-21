@@ -129,7 +129,7 @@ Util::Array<String> Lfs::getChildren(const String &path)
     Util::Array<DirectoryEntry> directoryEntries = readDirectoryEntries(inode);
 
     Util::Array<String> res = Util::Array<String>(directoryEntries.length());
-    for(int i = 0; i < directoryEntries.length(); i++) {
+    for(size_t i = 0; i < directoryEntries.length(); i++) {
         res[i] = directoryEntries[i].filename;
     }
 
@@ -159,7 +159,7 @@ uint64_t Lfs::getInodeNumber(const String &path)
     // starting at root directory (always inode 1)
     uint64_t currentInodeNumber = 1;
 
-    for(int i = 0; i < token.length(); i++) {
+    for(size_t i = 0; i < token.length(); i++) {
         // find token[i] in currentDir
         Inode currentDir = getInode(currentInodeNumber);
 
@@ -167,7 +167,7 @@ uint64_t Lfs::getInodeNumber(const String &path)
 
         // check if token[i] is in current dir
         bool found = false;
-        for(int i = 0; i < directoryEntries.length(); i++) {
+        for(size_t i = 0; i < directoryEntries.length(); i++) {
             if(directoryEntries[i].filename == token[i]) {
                 currentInodeNumber = directoryEntries[i].inodeNumber;
                 found = true;
@@ -238,7 +238,7 @@ bool Lfs::readLfsFromDevice()
     uint8_t inodeMapBuffer[BLOCK_SIZE * superblock.inodeMapSize];
     device->read(inodeMapBuffer, superblock.inodeMapPosition * sectorsPerBlock, superblock.inodeMapSize * sectorsPerBlock);
 
-    for (int i = 0; i < BLOCK_SIZE * superblock.inodeMapSize; i += 20)
+    for (size_t i = 0; i < BLOCK_SIZE * superblock.inodeMapSize; i += 20)
     {
         uint64_t inodeNum = readU64(inodeMapBuffer, i);
 
@@ -258,8 +258,104 @@ bool Lfs::readLfsFromDevice()
     return true;
 }
 
+DataBlock Lfs::getDataBlock(uint64_t blockNumber) {
+    // if not in cache read forom disk
+    if(!blockCache.containsKey(blockNumber)) {
+        DataBlock block;
+        device->read(block.data, blockNumber * sectorsPerBlock, sectorsPerBlock);
+        blockCache.put(blockNumber, block);
+    }
+
+    return blockCache.get(blockNumber);
+}
+
 Util::Array<DirectoryEntry> Lfs::readDirectoryEntries(Inode &dir) {
-    // TODO
-    return Util::Array<DirectoryEntry>(0);
+    Util::ArrayList<DirectoryEntry> entries;
+
+    // read all directory entries in direct blocks
+    for(size_t i = 0; i < 10; i++) {
+
+        // block id 0 is end of list
+        if(dir.directBlocks[i] == 0) {
+            break;
+        }
+
+        DataBlock block = getDataBlock(dir.directBlocks[i]);
+
+        // read all entries of block
+        for(size_t d = 0; d < BLOCK_SIZE;) {
+            DirectoryEntry entry;
+
+            entry.inodeNumber = readU64(block.data, d);
+
+            uint32_t filenameLength = readU32(block.data, d + sizeof(entry.inodeNumber));
+            for(size_t l = 0; l < filenameLength; l++) {
+                entry.filename += String(block.data[d + sizeof(entry.inodeNumber) + sizeof(filenameLength) + l]);
+            }
+
+            entries.add(entry);
+
+            d += entry.filename.length() + sizeof(filenameLength) + sizeof(entry.inodeNumber);
+        }
+    }
+
+    // read all directory entries in indirect blocks
+    if(dir.indirectBlocks != 0) {
+        DataBlock indirectBlock = getDataBlock(dir.indirectBlocks);
+
+        for(size_t i = 0; i < BLOCK_SIZE / sizeof(uint64_t); i++) {
+            uint64_t blockNumber = readU64(indirectBlock.data, i * sizeof(uint64_t));
+            DataBlock block = getDataBlock(blockNumber);
+
+            // read all entries of block
+            for(size_t d = 0; d < BLOCK_SIZE;) {
+                DirectoryEntry entry;
+
+                entry.inodeNumber = readU64(block.data, d);
+
+                uint32_t filenameLength = readU32(block.data, d + sizeof(entry.inodeNumber));
+                for(size_t l = 0; l < filenameLength; l++) {
+                    entry.filename += String(block.data[d + sizeof(entry.inodeNumber) + sizeof(filenameLength) + l]);
+                }
+
+                entries.add(entry);
+
+                d += entry.filename.length() + sizeof(filenameLength) + sizeof(entry.inodeNumber);
+            }
+        }
+    }
+
+    // read all directory entries in doubly indirect blocks
+    if(dir.doublyIndirectBlocks != 0) {
+        DataBlock doublyIndirectBlock = getDataBlock(dir.doublyIndirectBlocks);
+
+        for(size_t j = 0; j < BLOCK_SIZE / sizeof(uint64_t); j++) {
+            uint64_t indirectBlockNumber = readU64(doublyIndirectBlock.data, j * sizeof(uint64_t));
+            DataBlock indirectBlock = getDataBlock(indirectBlockNumber);
+
+            for(size_t i = 0; i < BLOCK_SIZE / sizeof(uint64_t); i++) {
+                uint64_t blockNumber = readU64(indirectBlock.data, i * sizeof(uint64_t));
+                DataBlock block = getDataBlock(blockNumber);
+
+                // read all entries of block
+                for(size_t d = 0; d < BLOCK_SIZE;) {
+                    DirectoryEntry entry;
+
+                    entry.inodeNumber = readU64(block.data, d);
+
+                    uint32_t filenameLength = readU32(block.data, d + sizeof(entry.inodeNumber));
+                    for(size_t l = 0; l < filenameLength; l++) {
+                        entry.filename += String(block.data[d + sizeof(entry.inodeNumber) + sizeof(filenameLength) + l]);
+                    }
+
+                    entries.add(entry);
+
+                    d += entry.filename.length() + sizeof(filenameLength) + sizeof(entry.inodeNumber);
+                }
+            }
+        }
+    }
+
+    return entries.toArray();
 }
 

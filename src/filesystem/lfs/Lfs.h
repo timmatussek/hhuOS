@@ -136,6 +136,14 @@ struct DirectoryEntry {
      * Filename of entry
      */
     String filename;
+
+    /**
+     * Compare DirectoryEntries for inequality. (needed for ArrayList)
+     */
+    bool operator!=(const DirectoryEntry &other) {
+        return inodeNumber != other.inodeNumber 
+            || filename != other.filename;
+    }
 };
 
 class Lfs
@@ -224,6 +232,13 @@ private:
      * @return false if disk does not conatin a valid lfs
      */
     bool readLfsFromDevice();
+
+    /**
+     * Read a data block.
+     * 
+     * @return DataBlock for blockNumber
+     */
+    DataBlock getDataBlock(uint64_t blockNumber);
 
      /**
      * Reads all directory entries of a directory.
