@@ -29,6 +29,11 @@
 #define BLOCK_SIZE 4096
 
 /**
+ * How many block addresses are stored in a indirect block.
+ */
+#define BLOCKS_PER_INDIRECT_BLOCK (BLOCK_SIZE / sizeof(uint64_t))
+
+/**
  * The superblock contains information about the filesystem.
  * It is always at block 0.
  */
@@ -239,6 +244,13 @@ private:
      * @return DataBlock for blockNumber
      */
     DataBlock getDataBlock(uint64_t blockNumber);
+
+    /**
+     * Read a data block realtive to file.
+     * 
+     * @return DataBlock for blockNumber from inodes data block tables
+     */
+    DataBlock getDataBlockFromFile(Inode &inode, uint64_t blockNumber);
 
      /**
      * Reads all directory entries of a directory.

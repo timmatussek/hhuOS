@@ -56,31 +56,177 @@ void Lfs::reset()
 
 bool Lfs::flush()
 {
-    // TODO
+    /* 
+        TODO 
+        write all dirty blocks
+        write all dirty inodes
+        update indode map with new inode positions
+        write inode map
+        write superblock
+    */
     return false;
+}
+
+DataBlock Lfs::getDataBlockFromFile(Inode &inode, uint64_t blockNumber) {
+    // determine if block is in direct, indirect or doubly indirect list
+    if(blockNumber < 10) {
+        return getDataBlock(inode.directBlocks[blockNumber]);
+    } else if(blockNumber < 10 + BLOCKS_PER_INDIRECT_BLOCK) {
+        DataBlock indirectBlock = getDataBlock(inode.indirectBlocks);
+        uint64_t indirectBlockNumber = readU64(indirectBlock.data, (blockNumber - 10) * sizeof(uint64_t));
+        return getDataBlock(indirectBlockNumber);
+    } else {
+        DataBlock doublyIndirectBlock = getDataBlock(inode.doublyIndirectBlocks);
+
+        uint64_t n = blockNumber - 10 - BLOCKS_PER_INDIRECT_BLOCK;
+        uint64_t j = n / BLOCKS_PER_INDIRECT_BLOCK;
+        uint64_t i = n % BLOCKS_PER_INDIRECT_BLOCK;
+
+        uint64_t doublyIndirectBlockNumber = readU64(doublyIndirectBlock.data, j * sizeof(uint64_t));
+        DataBlock indirectBlock = getDataBlock(doublyIndirectBlockNumber);
+        uint64_t indirectBlockNumber = readU64(indirectBlock.data, i * sizeof(uint64_t));
+        return getDataBlock(indirectBlockNumber);
+    }
 }
 
 uint64_t Lfs::readData(const String &path, char *buf, uint64_t pos, uint64_t numBytes)
 {
-    // TODO
-    return 0;
+    uint64_t inodeNumber = getInodeNumber(path);
+
+    if (inodeNumber == 0)
+    {
+        return 0;
+    }
+
+    Inode inode = getInode(inodeNumber);
+
+    // TODO round up
+    uint64_t roundedPosition;
+    // TODO round down
+    uint64_t roundedLength;
+
+    uint64_t start = roundedPosition / BLOCK_SIZE;
+    uint64_t end = (roundedPosition + roundedLength) / BLOCK_SIZE;
+
+    for(size_t i = start; i < end; i++) {
+        DataBlock block = getDataBlockFromFile(inode, i);
+        memcpy(buf + i * BLOCK_SIZE, block.data, BLOCK_SIZE);
+    }
+
+    // if pos is not block aligned we need to read a partial block
+    uint64_t startBlock = pos / BLOCK_SIZE;
+    uint64_t startOffset = roundedPosition - pos;
+
+    if(startOffset != 0) {
+        DataBlock partialStartblock = getDataBlockFromFile(inode, startBlock);
+        memcpy(buf + startBlock * BLOCK_SIZE, partialStartblock.data, startOffset);
+    }
+
+    // if numBytes is not block aligned we need to read a partial block
+    uint64_t endBlock = (pos + numBytes) / BLOCK_SIZE;
+    uint64_t endOffset = numBytes - roundedLength;
+
+    if(endOffset != 0) {
+        DataBlock partialEndBlock = getDataBlockFromFile(inode, endBlock);
+        memcpy(buf + endBlock * BLOCK_SIZE, partialEndBlock.data, endOffset);
+    }
+
+    return numBytes;
 }
 
 uint64_t Lfs::writeData(const String &path, char *buf, uint64_t pos, uint64_t length)
 {
-    // TODO
-    return 0;
+    uint64_t inodeNumber = getInodeNumber(path);
+
+    if (inodeNumber == 0)
+    {
+        return 0;
+    }
+
+    Inode inode = getInode(inodeNumber);
+
+    // TODO round up
+    uint64_t roundedPosition;
+    // TODO round down
+    uint64_t roundedLength;
+
+    uint64_t start = roundedPosition / BLOCK_SIZE;
+    uint64_t end = (roundedPosition + roundedLength) / BLOCK_SIZE;
+
+    for(size_t i = start; i < end; i++) {
+        DataBlock block = getDataBlockFromFile(inode, i);
+        memcpy(block.data, buf + i * BLOCK_SIZE, BLOCK_SIZE);
+        block.dirty = true;
+        // TODO update in cache
+    }
+
+    // if pos is not block aligned we need to read and write a partial block
+    uint64_t startBlock = pos / BLOCK_SIZE;
+    uint64_t startOffset = roundedPosition - pos;
+
+    if(startOffset != 0) {
+        DataBlock partialStartblock = getDataBlockFromFile(inode, startBlock);
+        memcpy(partialStartblock.data, buf + startBlock * BLOCK_SIZE, startOffset);
+        partialStartblock.dirty = true;
+        // TODO update in cache
+    }
+
+    // if length is not block aligned we need to read and write a partial block
+    uint64_t endBlock = (pos + length) / BLOCK_SIZE;
+    uint64_t endOffset = length - roundedLength;
+
+    if(endOffset != 0) {
+        DataBlock partialEndBlock = getDataBlockFromFile(inode, endBlock);
+        memcpy(partialEndBlock.data, buf + endBlock * BLOCK_SIZE, endOffset);
+        partialEndBlock.dirty = true;
+        // TODO update in cache
+    }
+
+    return length;
 }
 
 bool Lfs::createNode(const String &path, uint8_t fileType)
 {
-    // TODO
+    uint64_t inodeNumber = getInodeNumber(path);
+
+    // check if already exists
+    if (inodeNumber != 0)
+    {
+        return false;
+    }
+
+    Inode inode;
+
+    inode.dirty = true;
+    inode.fileType = fileType;
+
+    // TODO if fileType is directory add . and .. 
+
+    inodeCache.put(inodeNumber, inode);
+
+    // TODO add directory entry in parent
+
     return false;
 }
 
 bool Lfs::deleteNode(const String &path)
 {
-    // TODO
+    uint64_t inodeNumber = getInodeNumber(path);
+
+    if (inodeNumber == 0)
+    {
+        return false;
+    }
+
+    Inode inode = getInode(inodeNumber);
+
+    // TODO delete all blocks from blockCache
+
+    inodeCache.remove(inodeNumber);
+    inodeMap.remove(inodeNumber);
+
+    // TODO delete directory entry in parent
+
     return false;
 }
 
