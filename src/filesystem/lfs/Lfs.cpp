@@ -15,6 +15,7 @@
  */
 
 #include "Lfs.h"
+#include "lib/util/ByteBuffer.h"
 #include "filesystem/core/Filesystem.h"
 
 Lfs::Lfs(StorageDevice *device) : device(device)
@@ -73,7 +74,7 @@ DataBlock Lfs::getDataBlockFromFile(Inode &inode, uint64_t blockNumber) {
         return getDataBlock(inode.directBlocks[blockNumber]);
     } else if(blockNumber < 10 + BLOCKS_PER_INDIRECT_BLOCK) {
         DataBlock indirectBlock = getDataBlock(inode.indirectBlocks);
-        uint64_t indirectBlockNumber = readU64(indirectBlock.data, (blockNumber - 10) * sizeof(uint64_t));
+        uint64_t indirectBlockNumber = Util::ByteBuffer::readU64(indirectBlock.data, (blockNumber - 10) * sizeof(uint64_t));
         return getDataBlock(indirectBlockNumber);
     } else {
         DataBlock doublyIndirectBlock = getDataBlock(inode.doublyIndirectBlocks);
@@ -82,9 +83,9 @@ DataBlock Lfs::getDataBlockFromFile(Inode &inode, uint64_t blockNumber) {
         uint64_t j = n / BLOCKS_PER_INDIRECT_BLOCK;
         uint64_t i = n % BLOCKS_PER_INDIRECT_BLOCK;
 
-        uint64_t doublyIndirectBlockNumber = readU64(doublyIndirectBlock.data, j * sizeof(uint64_t));
+        uint64_t doublyIndirectBlockNumber = Util::ByteBuffer::readU64(doublyIndirectBlock.data, j * sizeof(uint64_t));
         DataBlock indirectBlock = getDataBlock(doublyIndirectBlockNumber);
-        uint64_t indirectBlockNumber = readU64(indirectBlock.data, i * sizeof(uint64_t));
+        uint64_t indirectBlockNumber = Util::ByteBuffer::readU64(indirectBlock.data, i * sizeof(uint64_t));
         return getDataBlock(indirectBlockNumber);
     }
 }
@@ -287,16 +288,6 @@ bool Lfs::isValid()
     return valid;
 }
 
-uint32_t Lfs::readU32(uint8_t *buffer, size_t offset)
-{
-    return ((uint32_t)buffer[offset]) | (((uint32_t)buffer[offset + 1]) << 8) | (((uint32_t)buffer[offset + 2]) << 16) | (((uint32_t)buffer[offset + 3]) << 24);
-}
-
-uint64_t Lfs::readU64(uint8_t *buffer, size_t offset)
-{
-    return ((uint64_t)buffer[offset]) | (((uint64_t)buffer[offset + 1]) << 8) | (((uint64_t)buffer[offset + 2]) << 16) | (((uint64_t)buffer[offset + 3]) << 24) | (((uint64_t)buffer[offset + 4]) << 32) | (((uint64_t)buffer[offset + 5]) << 40) | (((uint64_t)buffer[offset + 6]) << 48) | (((uint64_t)buffer[offset + 7]) << 56);
-}
-
 uint64_t Lfs::getInodeNumber(const String &path)
 {
     // split the path to search left to right
@@ -342,20 +333,20 @@ Inode Lfs::getInode(uint64_t inodeNumber)
         device->read(inodeBuffer, entry.inodePosition, BLOCK_SIZE);
 
         Inode inode;
-        inode.size = readU64(inodeBuffer, 0);
+        inode.size = Util::ByteBuffer::readU64(inodeBuffer, 0);
         inode.fileType = inodeBuffer[8];
-        inode.directBlocks[0] = readU64(inodeBuffer, 9);
-        inode.directBlocks[1] = readU64(inodeBuffer, 17);
-        inode.directBlocks[2] = readU64(inodeBuffer, 25);
-        inode.directBlocks[3] = readU64(inodeBuffer, 33);
-        inode.directBlocks[4] = readU64(inodeBuffer, 41);
-        inode.directBlocks[5] = readU64(inodeBuffer, 49);
-        inode.directBlocks[6] = readU64(inodeBuffer, 57);
-        inode.directBlocks[7] = readU64(inodeBuffer, 65);
-        inode.directBlocks[8] = readU64(inodeBuffer, 73);
-        inode.directBlocks[9] = readU64(inodeBuffer, 81);
-        inode.indirectBlocks = readU64(inodeBuffer, 89);
-        inode.doublyIndirectBlocks = readU64(inodeBuffer, 97);
+        inode.directBlocks[0] = Util::ByteBuffer::readU64(inodeBuffer, 9);
+        inode.directBlocks[1] = Util::ByteBuffer::readU64(inodeBuffer, 17);
+        inode.directBlocks[2] = Util::ByteBuffer::readU64(inodeBuffer, 25);
+        inode.directBlocks[3] = Util::ByteBuffer::readU64(inodeBuffer, 33);
+        inode.directBlocks[4] = Util::ByteBuffer::readU64(inodeBuffer, 41);
+        inode.directBlocks[5] = Util::ByteBuffer::readU64(inodeBuffer, 49);
+        inode.directBlocks[6] = Util::ByteBuffer::readU64(inodeBuffer, 57);
+        inode.directBlocks[7] = Util::ByteBuffer::readU64(inodeBuffer, 65);
+        inode.directBlocks[8] = Util::ByteBuffer::readU64(inodeBuffer, 73);
+        inode.directBlocks[9] = Util::ByteBuffer::readU64(inodeBuffer, 81);
+        inode.indirectBlocks = Util::ByteBuffer::readU64(inodeBuffer, 89);
+        inode.doublyIndirectBlocks = Util::ByteBuffer::readU64(inodeBuffer, 97);
 
         // add to cache
         inodeCache.put(inodeNumber, inode);
@@ -370,23 +361,23 @@ bool Lfs::readLfsFromDevice()
     uint8_t superblockBuffer[BLOCK_SIZE];
     device->read(superblockBuffer, 0, sectorsPerBlock);
 
-    superblock.magic = readU32(superblockBuffer, 0);
+    superblock.magic = Util::ByteBuffer::readU32(superblockBuffer, 0);
 
     if (superblock.magic != LFS_MAGIC)
     {
         return false;
     }
 
-    superblock.inodeMapPosition = readU64(superblockBuffer, 4);
-    superblock.inodeMapSize = readU64(superblockBuffer, 12);
-    superblock.currentSegment = readU64(superblockBuffer, 20);
+    superblock.inodeMapPosition = Util::ByteBuffer::readU64(superblockBuffer, 4);
+    superblock.inodeMapSize = Util::ByteBuffer::readU64(superblockBuffer, 12);
+    superblock.currentSegment = Util::ByteBuffer::readU64(superblockBuffer, 20);
 
     uint8_t inodeMapBuffer[BLOCK_SIZE * superblock.inodeMapSize];
     device->read(inodeMapBuffer, superblock.inodeMapPosition * sectorsPerBlock, superblock.inodeMapSize * sectorsPerBlock);
 
     for (size_t i = 0; i < BLOCK_SIZE * superblock.inodeMapSize; i += 20)
     {
-        uint64_t inodeNum = readU64(inodeMapBuffer, i);
+        uint64_t inodeNum = Util::ByteBuffer::readU64(inodeMapBuffer, i);
 
         if (inodeNum == 0)
         {
@@ -395,8 +386,8 @@ bool Lfs::readLfsFromDevice()
 
         InodeMapEntry entry;
 
-        entry.inodePosition = readU64(inodeMapBuffer, i + 8);
-        entry.inodeOffset = readU32(inodeMapBuffer, i + 16);
+        entry.inodePosition = Util::ByteBuffer::readU64(inodeMapBuffer, i + 8);
+        entry.inodeOffset = Util::ByteBuffer::readU32(inodeMapBuffer, i + 16);
 
         inodeMap.put(inodeNum, entry);
     }
@@ -432,9 +423,9 @@ Util::Array<DirectoryEntry> Lfs::readDirectoryEntries(Inode &dir) {
         for(size_t d = 0; d < BLOCK_SIZE;) {
             DirectoryEntry entry;
 
-            entry.inodeNumber = readU64(block.data, d);
+            entry.inodeNumber = Util::ByteBuffer::readU64(block.data, d);
 
-            uint32_t filenameLength = readU32(block.data, d + sizeof(entry.inodeNumber));
+            uint32_t filenameLength = Util::ByteBuffer::readU32(block.data, d + sizeof(entry.inodeNumber));
             for(size_t l = 0; l < filenameLength; l++) {
                 entry.filename += String(block.data[d + sizeof(entry.inodeNumber) + sizeof(filenameLength) + l]);
             }
@@ -450,16 +441,16 @@ Util::Array<DirectoryEntry> Lfs::readDirectoryEntries(Inode &dir) {
         DataBlock indirectBlock = getDataBlock(dir.indirectBlocks);
 
         for(size_t i = 0; i < BLOCK_SIZE / sizeof(uint64_t); i++) {
-            uint64_t blockNumber = readU64(indirectBlock.data, i * sizeof(uint64_t));
+            uint64_t blockNumber = Util::ByteBuffer::readU64(indirectBlock.data, i * sizeof(uint64_t));
             DataBlock block = getDataBlock(blockNumber);
 
             // read all entries of block
             for(size_t d = 0; d < BLOCK_SIZE;) {
                 DirectoryEntry entry;
 
-                entry.inodeNumber = readU64(block.data, d);
+                entry.inodeNumber = Util::ByteBuffer::readU64(block.data, d);
 
-                uint32_t filenameLength = readU32(block.data, d + sizeof(entry.inodeNumber));
+                uint32_t filenameLength = Util::ByteBuffer::readU32(block.data, d + sizeof(entry.inodeNumber));
                 for(size_t l = 0; l < filenameLength; l++) {
                     entry.filename += String(block.data[d + sizeof(entry.inodeNumber) + sizeof(filenameLength) + l]);
                 }
@@ -476,23 +467,21 @@ Util::Array<DirectoryEntry> Lfs::readDirectoryEntries(Inode &dir) {
         DataBlock doublyIndirectBlock = getDataBlock(dir.doublyIndirectBlocks);
 
         for(size_t j = 0; j < BLOCK_SIZE / sizeof(uint64_t); j++) {
-            uint64_t indirectBlockNumber = readU64(doublyIndirectBlock.data, j * sizeof(uint64_t));
+            uint64_t indirectBlockNumber = Util::ByteBuffer::readU64(doublyIndirectBlock.data, j * sizeof(uint64_t));
             DataBlock indirectBlock = getDataBlock(indirectBlockNumber);
 
             for(size_t i = 0; i < BLOCK_SIZE / sizeof(uint64_t); i++) {
-                uint64_t blockNumber = readU64(indirectBlock.data, i * sizeof(uint64_t));
+                uint64_t blockNumber = Util::ByteBuffer::readU64(indirectBlock.data, i * sizeof(uint64_t));
                 DataBlock block = getDataBlock(blockNumber);
 
                 // read all entries of block
                 for(size_t d = 0; d < BLOCK_SIZE;) {
                     DirectoryEntry entry;
 
-                    entry.inodeNumber = readU64(block.data, d);
+                    entry.inodeNumber = Util::ByteBuffer::readU64(block.data, d);
 
-                    uint32_t filenameLength = readU32(block.data, d + sizeof(entry.inodeNumber));
-                    for(size_t l = 0; l < filenameLength; l++) {
-                        entry.filename += String(block.data[d + sizeof(entry.inodeNumber) + sizeof(filenameLength) + l]);
-                    }
+                    uint32_t filenameLength = Util::ByteBuffer::readU32(block.data, d + sizeof(entry.inodeNumber));
+                    entry.filename = Util::ByteBuffer::readString(block.data, d + sizeof(entry.inodeNumber) + sizeof(filenameLength), filenameLength);
 
                     entries.add(entry);
 

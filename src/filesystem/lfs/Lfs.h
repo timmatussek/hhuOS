@@ -194,26 +194,6 @@ private:
     Util::HashMap<uint64_t, DataBlock> blockCache;
 
     /**
-     * Read a uint32_t in little-endian at offset from buffer.
-     * 
-     * @param buffer A buffer containing bytes.
-     * @param offset An offset in bytes into buffer.
-     * 
-     * @return uint32_t value at offset in buffer
-     */
-    uint32_t readU32(uint8_t *buffer, size_t offset);
-
-    /**
-     * Read a uint64_t in little-endian at offset from buffer.
-     * 
-     * @param buffer A buffer containing bytes.
-     * @param offset An offset in bytes into buffer.
-     * 
-     * @return uint64_t value at offset in buffer
-     */
-    uint64_t readU64(uint8_t *buffer, size_t offset);
-
-    /**
      * Find the inode number of a path.
      * 
      * @param path A path to a file or directory.

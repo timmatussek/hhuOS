@@ -1,4 +1,4 @@
-# Copyright (C) 2019 Burak Akguel, Christian Gesse, Fabian Ruhland, Filip Krakowski, Michael Schoettner
+# Copyright (C) 2019 Burak Akguel, Christian Gesse, Fabian Ruhland, Filip Krakowski, Michael Schoettner, Tim Matussek
 # Heinrich-Heine University
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
@@ -18,4 +18,5 @@ target_sources(lib PUBLIC
         ${HHUOS_SRC_DIR}/lib/util/Address.cpp
         ${HHUOS_SRC_DIR}/lib/util/ArgumentParser.cpp
         ${HHUOS_SRC_DIR}/lib/util/Prototype.cpp
+        ${HHUOS_SRC_DIR}/lib/util/ByteBuffer.cpp
         ${HHUOS_SRC_DIR}/lib/util/ArrayList.h)
