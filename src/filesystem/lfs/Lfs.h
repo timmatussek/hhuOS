@@ -232,12 +232,34 @@ private:
      */
     DataBlock getDataBlockFromFile(Inode &inode, uint64_t blockNumber);
 
+    /**
+     * Write a data block realtive to file into block cache.
+     * 
+     */
+    void setDataBlockFromFile(Inode &inode, uint64_t blockNumber, DataBlock block);
+
      /**
      * Reads all directory entries of a directory.
      * 
      * @return an array of directory entries
      */
     Util::Array<DirectoryEntry> readDirectoryEntries(Inode &dir);
+
+    /**
+     * Rounds up an address to the nearest multiple of
+     * BLOCK_SIZE, if not already a multiple of BLOCK_SIZE.
+     * 
+     * @return rounded address
+     */
+    uint64_t roundUpBlockAddress(uint64_t addr);
+
+    /**
+     * Rounds down an address to the nearest multiple of
+     * BLOCK_SIZE, if not already a multiple of BLOCK_SIZE.
+     * 
+     * @return rounded address
+     */
+    uint64_t roundDownBlockAddress(uint64_t addr);
 
 public:
     /**

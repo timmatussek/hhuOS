@@ -90,6 +90,28 @@ DataBlock Lfs::getDataBlockFromFile(Inode &inode, uint64_t blockNumber) {
     }
 }
 
+void Lfs::setDataBlockFromFile(Inode &inode, uint64_t blockNumber, DataBlock block) {
+    // determine if block is in direct, indirect or doubly indirect list
+    if(blockNumber < 10) {
+        return blockCache.put(inode.directBlocks[blockNumber], block);
+    } else if(blockNumber < 10 + BLOCKS_PER_INDIRECT_BLOCK) {
+        DataBlock indirectBlock = getDataBlock(inode.indirectBlocks);
+        uint64_t indirectBlockNumber = Util::ByteBuffer::readU64(indirectBlock.data, (blockNumber - 10) * sizeof(uint64_t));
+        return blockCache.put(indirectBlockNumber, block);
+    } else {
+        DataBlock doublyIndirectBlock = getDataBlock(inode.doublyIndirectBlocks);
+
+        uint64_t n = blockNumber - 10 - BLOCKS_PER_INDIRECT_BLOCK;
+        uint64_t j = n / BLOCKS_PER_INDIRECT_BLOCK;
+        uint64_t i = n % BLOCKS_PER_INDIRECT_BLOCK;
+
+        uint64_t doublyIndirectBlockNumber = Util::ByteBuffer::readU64(doublyIndirectBlock.data, j * sizeof(uint64_t));
+        DataBlock indirectBlock = getDataBlock(doublyIndirectBlockNumber);
+        uint64_t indirectBlockNumber = Util::ByteBuffer::readU64(indirectBlock.data, i * sizeof(uint64_t));
+        return blockCache.put(indirectBlockNumber, block);
+    }
+}
+
 uint64_t Lfs::readData(const String &path, char *buf, uint64_t pos, uint64_t numBytes)
 {
     uint64_t inodeNumber = getInodeNumber(path);
@@ -101,10 +123,8 @@ uint64_t Lfs::readData(const String &path, char *buf, uint64_t pos, uint64_t num
 
     Inode inode = getInode(inodeNumber);
 
-    // TODO round up
-    uint64_t roundedPosition;
-    // TODO round down
-    uint64_t roundedLength;
+    uint64_t roundedPosition = roundUpBlockAddress(pos);
+    uint64_t roundedLength  = roundDownBlockAddress(numBytes);
 
     uint64_t start = roundedPosition / BLOCK_SIZE;
     uint64_t end = (roundedPosition + roundedLength) / BLOCK_SIZE;
@@ -146,10 +166,8 @@ uint64_t Lfs::writeData(const String &path, char *buf, uint64_t pos, uint64_t le
 
     Inode inode = getInode(inodeNumber);
 
-    // TODO round up
-    uint64_t roundedPosition;
-    // TODO round down
-    uint64_t roundedLength;
+    uint64_t roundedPosition = roundUpBlockAddress(pos);
+    uint64_t roundedLength  = roundDownBlockAddress(length);
 
     uint64_t start = roundedPosition / BLOCK_SIZE;
     uint64_t end = (roundedPosition + roundedLength) / BLOCK_SIZE;
@@ -158,7 +176,8 @@ uint64_t Lfs::writeData(const String &path, char *buf, uint64_t pos, uint64_t le
         DataBlock block = getDataBlockFromFile(inode, i);
         memcpy(block.data, buf + i * BLOCK_SIZE, BLOCK_SIZE);
         block.dirty = true;
-        // TODO update in cache
+        // update in cache
+        setDataBlockFromFile(inode, i, block);
     }
 
     // if pos is not block aligned we need to read and write a partial block
@@ -169,7 +188,8 @@ uint64_t Lfs::writeData(const String &path, char *buf, uint64_t pos, uint64_t le
         DataBlock partialStartblock = getDataBlockFromFile(inode, startBlock);
         memcpy(partialStartblock.data, buf + startBlock * BLOCK_SIZE, startOffset);
         partialStartblock.dirty = true;
-        // TODO update in cache
+        // update in cache
+        setDataBlockFromFile(inode, startBlock, partialStartblock);
     }
 
     // if length is not block aligned we need to read and write a partial block
@@ -180,7 +200,8 @@ uint64_t Lfs::writeData(const String &path, char *buf, uint64_t pos, uint64_t le
         DataBlock partialEndBlock = getDataBlockFromFile(inode, endBlock);
         memcpy(partialEndBlock.data, buf + endBlock * BLOCK_SIZE, endOffset);
         partialEndBlock.dirty = true;
-        // TODO update in cache
+        // update in cache
+        setDataBlockFromFile(inode, endBlock, partialEndBlock);
     }
 
     return length;
@@ -396,7 +417,7 @@ bool Lfs::readLfsFromDevice()
 }
 
 DataBlock Lfs::getDataBlock(uint64_t blockNumber) {
-    // if not in cache read forom disk
+    // if not in cache read from disk
     if(!blockCache.containsKey(blockNumber)) {
         DataBlock block;
         device->read(block.data, blockNumber * sectorsPerBlock, sectorsPerBlock);
@@ -494,3 +515,16 @@ Util::Array<DirectoryEntry> Lfs::readDirectoryEntries(Inode &dir) {
     return entries.toArray();
 }
 
+uint64_t Lfs::roundUpBlockAddress(uint64_t addr) {
+    if(addr % BLOCK_SIZE == 0) {
+        return addr;
+    }
+    return ((addr / BLOCK_SIZE) + 1) * BLOCK_SIZE;
+}
+
+uint64_t Lfs::roundDownBlockAddress(uint64_t addr) {
+    if(addr % BLOCK_SIZE == 0) {
+        return addr;
+    }
+    return (addr / BLOCK_SIZE) * BLOCK_SIZE;
+}
