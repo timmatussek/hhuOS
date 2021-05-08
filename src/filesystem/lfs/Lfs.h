@@ -155,7 +155,7 @@ class Lfs
 {
 private:
     /**
-     * The device this fielsystem is read from or written to.
+     * The device this filesystem is read from or written to.
      */
     StorageDevice *device = nullptr;
 
@@ -176,22 +176,31 @@ private:
 
     /**
      * In-memory cache of inode map.
+     * 
+     * Maps an inode number to its inode map entry
      */
     Util::HashMap<uint64_t, InodeMapEntry> inodeMap;
 
     /**
      * In-memory cache of inodes.
      * 
-     * TODO cache eviction
+     * Maps an inode number to its inode.
      */
     Util::HashMap<uint64_t, Inode> inodeCache;
 
     /**
      * In-memory cache of blocks.
      * 
-     * TODO cache eviction
+     * Maps a block number to its data block.
      */
     Util::HashMap<uint64_t, DataBlock> blockCache;
+
+     /**
+     * In-memory cache of directory entries.
+     * 
+     * Maps inode number to its directory entries.
+     */
+    Util::HashMap<uint64_t, Util::Array<DirectoryEntry>> directoryEntryCache;
 
     /**
      * Find the inode number of a path.
@@ -201,6 +210,15 @@ private:
      * @return Inode number of path. 0 if not found.
      */
     uint64_t getInodeNumber(const String &path);
+
+    /**
+     * Find the inode number of the parent of a path.
+     * 
+     * @param path A path to a file or directory.
+     * 
+     * @return Inode number of parent. 0 if not found.
+     */
+    uint64_t getParentInodeNumber(const String &path);
 
     /**
      * Find the inode of a inode number.

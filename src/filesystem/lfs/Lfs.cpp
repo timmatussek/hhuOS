@@ -43,7 +43,6 @@ void Lfs::reset()
     blockCache.clear();
 
     // add empty root dir; root dir is always inode number 1
-    // TODO add . and .. (both pointing to / itself)
     Inode rootDir = {
         .dirty = true,
         .size = 0,
@@ -53,6 +52,24 @@ void Lfs::reset()
         .doublyIndirectBlocks = 0,
     };
     inodeCache.put(1, rootDir);
+
+    // add . and .. (both pointing to / itself)
+    Util::ArrayList<DirectoryEntry> entries;
+
+    DirectoryEntry entryCurrentDir;
+    entryCurrentDir.filename = ".";
+    entryCurrentDir.inodeNumber = 1;
+
+    entries.add(entryCurrentDir);
+
+    DirectoryEntry entryParentDir;
+    entryParentDir.filename = "..";
+    entryParentDir.inodeNumber = 1;
+
+    entries.add(entryParentDir);
+
+    directoryEntryCache.put(1, entries.toArray());
+
 }
 
 bool Lfs::flush()
@@ -222,11 +239,32 @@ bool Lfs::createNode(const String &path, uint8_t fileType)
     inode.dirty = true;
     inode.fileType = fileType;
 
-    // TODO if fileType is directory add . and .. 
+    // TODO allocate new inode number
+    // inodeNumber = getNewInodeNumber();
 
     inodeCache.put(inodeNumber, inode);
 
+    uint64_t parentInodeNumber = getParentInodeNumber(path);
     // TODO add directory entry in parent
+
+    // if fileType is directory add . and ..
+    if(fileType == FsNode::FileType::DIRECTORY_FILE) {
+        Util::ArrayList<DirectoryEntry> entries;
+
+        DirectoryEntry entryCurrentDir;
+        entryCurrentDir.filename = ".";
+        entryCurrentDir.inodeNumber = inodeNumber;
+
+        entries.add(entryCurrentDir);
+
+        DirectoryEntry entryParentDir;
+        entryParentDir.filename = "..";
+        entryParentDir.inodeNumber = parentInodeNumber;
+
+        entries.add(entryParentDir);
+
+        directoryEntryCache.put(inodeNumber, entries.toArray());
+    }
 
     return false;
 }
@@ -247,6 +285,7 @@ bool Lfs::deleteNode(const String &path)
     inodeCache.remove(inodeNumber);
     inodeMap.remove(inodeNumber);
 
+    uint64_t parentInodeNumber = getParentInodeNumber(path);
     // TODO delete directory entry in parent
 
     return false;
@@ -340,6 +379,22 @@ uint64_t Lfs::getInodeNumber(const String &path)
 
     return currentInodeNumber;
 }
+
+uint64_t Lfs::getParentInodeNumber(const String &path) {
+
+    // split the path
+    Util::Array<String> token = path.split(Filesystem::SEPARATOR);
+
+    String parentPath = "/";
+
+    // rebuild path without last element
+    for(size_t i = 0; i < token.length() - 1; i++) {
+        parentPath += token[i] + "/";
+    }
+
+    return getInodeNumber(parentPath);
+}
+
 
 Inode Lfs::getInode(uint64_t inodeNumber)
 {
