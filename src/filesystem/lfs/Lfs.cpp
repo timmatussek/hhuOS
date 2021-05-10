@@ -70,6 +70,8 @@ void Lfs::reset()
 
     directoryEntryCache.put(1, entries.toArray());
 
+    // as root dir is inode 1, next free inode is 2
+    nextInodeNumber = 2;
 }
 
 bool Lfs::flush()
@@ -239,8 +241,9 @@ bool Lfs::createNode(const String &path, uint8_t fileType)
     inode.dirty = true;
     inode.fileType = fileType;
 
-    // TODO allocate new inode number
-    // inodeNumber = getNewInodeNumber();
+    // allocate new inode number
+    inodeNumber = nextInodeNumber;
+    nextInodeNumber++;
 
     inodeCache.put(inodeNumber, inode);
 
@@ -279,8 +282,6 @@ bool Lfs::deleteNode(const String &path)
     }
 
     Inode inode = getInode(inodeNumber);
-
-    // TODO delete all blocks from blockCache
 
     inodeCache.remove(inodeNumber);
     inodeMap.remove(inodeNumber);
@@ -466,6 +467,11 @@ bool Lfs::readLfsFromDevice()
         entry.inodeOffset = Util::ByteBuffer::readU32(inodeMapBuffer, i + 16);
 
         inodeMap.put(inodeNum, entry);
+
+        // keep track of highest in-use inode number
+        if(inodeNum >= nextInodeNumber) {
+            nextInodeNumber = inodeNum + 1;
+        }
     }
 
     return true;
@@ -518,6 +524,9 @@ Util::Array<DirectoryEntry> Lfs::readDirectoryEntries(Inode &dir) {
 
         for(size_t i = 0; i < BLOCK_SIZE / sizeof(uint64_t); i++) {
             uint64_t blockNumber = Util::ByteBuffer::readU64(indirectBlock.data, i * sizeof(uint64_t));
+
+            // TODO stop at 0? see direct blocks
+
             DataBlock block = getDataBlock(blockNumber);
 
             // read all entries of block
@@ -544,6 +553,9 @@ Util::Array<DirectoryEntry> Lfs::readDirectoryEntries(Inode &dir) {
 
         for(size_t j = 0; j < BLOCK_SIZE / sizeof(uint64_t); j++) {
             uint64_t indirectBlockNumber = Util::ByteBuffer::readU64(doublyIndirectBlock.data, j * sizeof(uint64_t));
+
+            // TODO stop at 0? see direct blocks
+
             DataBlock indirectBlock = getDataBlock(indirectBlockNumber);
 
             for(size_t i = 0; i < BLOCK_SIZE / sizeof(uint64_t); i++) {

@@ -165,6 +165,11 @@ private:
     bool valid;
 
     /**
+     * Keeps track of the next unused inode number.
+     */
+    uint64_t nextInodeNumber;
+
+    /**
      * Superblock of current lfs.
      */
     Superblock superblock;
