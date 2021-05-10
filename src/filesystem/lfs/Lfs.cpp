@@ -283,6 +283,63 @@ bool Lfs::deleteNode(const String &path)
 
     Inode inode = getInode(inodeNumber);
 
+    // TODO refactor looping all blocks
+
+    // delete all blocks from blockCache
+    // direct blocks
+    for(size_t i = 0; i < 10; i++) {
+
+        // block id 0 is end of list
+        if(inode.directBlocks[i] == 0) {
+            break;
+        }
+
+        blockCache.remove(inode.directBlocks[i]);
+    }
+
+    // indirect blocks
+    if(inode.indirectBlocks != 0) {
+        DataBlock indirectBlock = getDataBlock(inode.indirectBlocks);
+
+        for(size_t i = 0; i < BLOCK_SIZE / sizeof(uint64_t); i++) {
+            uint64_t blockNumber = Util::ByteBuffer::readU64(indirectBlock.data, i * sizeof(uint64_t));
+
+            // TODO stop at 0? see direct blocks
+
+            blockCache.remove(blockNumber);
+        }
+
+        // remove indirect block itself
+        blockCache.remove(inode.indirectBlocks);
+    }
+
+    // doubly indirect blocks
+    if(inode.doublyIndirectBlocks != 0) {
+        DataBlock doublyIndirectBlock = getDataBlock(inode.doublyIndirectBlocks);
+
+        for(size_t j = 0; j < BLOCK_SIZE / sizeof(uint64_t); j++) {
+            uint64_t indirectBlockNumber = Util::ByteBuffer::readU64(doublyIndirectBlock.data, j * sizeof(uint64_t));
+
+            // TODO stop at 0? see direct blocks
+
+            DataBlock indirectBlock = getDataBlock(indirectBlockNumber);
+
+            for(size_t i = 0; i < BLOCK_SIZE / sizeof(uint64_t); i++) {
+                uint64_t blockNumber = Util::ByteBuffer::readU64(indirectBlock.data, i * sizeof(uint64_t));
+
+                // TODO stop at 0? see direct blocks
+
+                blockCache.remove(blockNumber);
+            }
+
+            // remove indirect block itself
+            blockCache.remove(indirectBlockNumber);
+        }
+
+        // remove doubly indirect block itself
+        blockCache.remove(inode.doublyIndirectBlocks);
+    }
+
     inodeCache.remove(inodeNumber);
     inodeMap.remove(inodeNumber);
 
