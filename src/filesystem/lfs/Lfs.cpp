@@ -57,12 +57,14 @@ void Lfs::reset()
     Util::ArrayList<DirectoryEntry> entries;
 
     DirectoryEntry entryCurrentDir;
+    entryCurrentDir.dirty = true;
     entryCurrentDir.filename = ".";
     entryCurrentDir.inodeNumber = 1;
 
     entries.add(entryCurrentDir);
 
     DirectoryEntry entryParentDir;
+    entryParentDir.dirty = true;
     entryParentDir.filename = "..";
     entryParentDir.inodeNumber = 1;
 
@@ -255,6 +257,7 @@ bool Lfs::createNode(const String &path, uint8_t fileType)
     Util::ArrayList<DirectoryEntry> parentDirectoryEntries(readDirectoryEntries(parentInode));
 
     DirectoryEntry currentFile;
+    currentFile.dirty = true;
     currentFile.filename = getFileName(path);
     currentFile.inodeNumber = inodeNumber;
 
@@ -267,12 +270,14 @@ bool Lfs::createNode(const String &path, uint8_t fileType)
         Util::ArrayList<DirectoryEntry> entries;
 
         DirectoryEntry entryCurrentDir;
+        entryCurrentDir.dirty = true;
         entryCurrentDir.filename = ".";
         entryCurrentDir.inodeNumber = inodeNumber;
 
         entries.add(entryCurrentDir);
 
         DirectoryEntry entryParentDir;
+        entryParentDir.dirty = true;
         entryParentDir.filename = "..";
         entryParentDir.inodeNumber = parentInodeNumber;
 
@@ -358,21 +363,23 @@ bool Lfs::deleteNode(const String &path)
     // delete directory entry in parent
     uint64_t parentInodeNumber = getParentInodeNumber(path);
     Inode parentInode = getInode(parentInodeNumber);
-    Util::ArrayList<DirectoryEntry> parentDirectoryEntries(readDirectoryEntries(parentInode));
+    Util::ArrayList<DirectoryEntry> oldParentDirectoryEntries(readDirectoryEntries(parentInode));
+    Util::ArrayList<DirectoryEntry> newParentDirectoryEntries;
 
-    // find index to remove
-    size_t currentFileIndex = 0;
-    for(size_t i = 0; i < parentDirectoryEntries.size(); i++) {
-        DirectoryEntry entry = parentDirectoryEntries.get(i);
+    // find current file entry and update it
+    for(size_t i = 0; i < oldParentDirectoryEntries.size(); i++) {
+        DirectoryEntry entry = oldParentDirectoryEntries.get(i);
+
         if(entry.inodeNumber == inodeNumber) {
-            currentFileIndex = i;
-            break;
+            // remove entry by setting its inodeNumber invalid
+            entry.inodeNumber = 0;
+            entry.dirty = true;
         }
+
+        newParentDirectoryEntries.add(entry);
     }
 
-    parentDirectoryEntries.remove(currentFileIndex);
-
-    directoryEntryCache.put(parentInodeNumber, parentDirectoryEntries.toArray());
+    directoryEntryCache.put(parentInodeNumber, newParentDirectoryEntries.toArray());
 
     return true;
 }
