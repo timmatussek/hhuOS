@@ -208,6 +208,15 @@ private:
     Util::HashMap<uint64_t, Util::Array<DirectoryEntry>> directoryEntryCache;
 
     /**
+     * Get the file or directory name of a path.
+     * 
+     * @param path A path to a file or directory.
+     * 
+     * @return The last element of the path.
+     */
+    String getFileName(const String &path);
+
+    /**
      * Find the inode number of a path.
      * 
      * @param path A path to a file or directory.
