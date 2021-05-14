@@ -187,6 +187,9 @@ uint64_t Lfs::writeData(const String &path, char *buf, uint64_t pos, uint64_t le
 
     Inode inode = getInode(inodeNumber);
 
+    // updated inode needs to be rewritten to disk
+    inode.dirty = true;
+
     uint64_t roundedPosition = roundUpBlockAddress(pos);
     uint64_t roundedLength  = roundDownBlockAddress(length);
 
@@ -225,7 +228,11 @@ uint64_t Lfs::writeData(const String &path, char *buf, uint64_t pos, uint64_t le
         setDataBlockFromFile(inode, endBlock, partialEndBlock);
     }
 
-    // TODO update file size
+    // update file size
+    inode.size += length;
+
+    // update inode in cache
+    inodeCache.put(inodeNumber, inode);
 
     return length;
 }
