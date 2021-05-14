@@ -306,12 +306,10 @@ bool Lfs::deleteNode(const String &path)
     // direct blocks
     for(size_t i = 0; i < 10; i++) {
 
-        // block id 0 is end of list
-        if(inode.directBlocks[i] == 0) {
-            break;
-        }
-
-        blockCache.remove(inode.directBlocks[i]);
+        // block id 0 is unused entry
+        if(inode.directBlocks[i] != 0) {
+            blockCache.remove(inode.directBlocks[i]);
+        }        
     }
 
     // indirect blocks
@@ -321,9 +319,10 @@ bool Lfs::deleteNode(const String &path)
         for(size_t i = 0; i < BLOCK_SIZE / sizeof(uint64_t); i++) {
             uint64_t blockNumber = Util::ByteBuffer::readU64(indirectBlock.data, i * sizeof(uint64_t));
 
-            // TODO stop at 0? see direct blocks
-
-            blockCache.remove(blockNumber);
+            // block id 0 is unused entry
+            if(blockNumber != 0) {
+                blockCache.remove(blockNumber);
+            }
         }
 
         // remove indirect block itself
@@ -337,20 +336,23 @@ bool Lfs::deleteNode(const String &path)
         for(size_t j = 0; j < BLOCK_SIZE / sizeof(uint64_t); j++) {
             uint64_t indirectBlockNumber = Util::ByteBuffer::readU64(doublyIndirectBlock.data, j * sizeof(uint64_t));
 
-            // TODO stop at 0? see direct blocks
+            // block id 0 is unused entry
+            if(indirectBlockNumber != 0) {
 
-            DataBlock indirectBlock = getDataBlock(indirectBlockNumber);
+                DataBlock indirectBlock = getDataBlock(indirectBlockNumber);
 
-            for(size_t i = 0; i < BLOCK_SIZE / sizeof(uint64_t); i++) {
-                uint64_t blockNumber = Util::ByteBuffer::readU64(indirectBlock.data, i * sizeof(uint64_t));
+                for(size_t i = 0; i < BLOCK_SIZE / sizeof(uint64_t); i++) {
+                    uint64_t blockNumber = Util::ByteBuffer::readU64(indirectBlock.data, i * sizeof(uint64_t));
 
-                // TODO stop at 0? see direct blocks
+                    // block id 0 is unused entry
+                    if(blockNumber != 0) {
+                        blockCache.remove(blockNumber);
+                    }
+                }
 
-                blockCache.remove(blockNumber);
+                // remove indirect block itself
+                blockCache.remove(indirectBlockNumber);
             }
-
-            // remove indirect block itself
-            blockCache.remove(indirectBlockNumber);
         }
 
         // remove doubly indirect block itself
@@ -593,9 +595,9 @@ Util::Array<DirectoryEntry> Lfs::readDirectoryEntries(Inode &dir) {
     // read all directory entries in direct blocks
     for(size_t i = 0; i < 10; i++) {
 
-        // block id 0 is end of list
+        // block id 0 is unused entry
         if(dir.directBlocks[i] == 0) {
-            break;
+            continue;
         }
 
         DataBlock block = getDataBlock(dir.directBlocks[i]);
@@ -624,7 +626,10 @@ Util::Array<DirectoryEntry> Lfs::readDirectoryEntries(Inode &dir) {
         for(size_t i = 0; i < BLOCK_SIZE / sizeof(uint64_t); i++) {
             uint64_t blockNumber = Util::ByteBuffer::readU64(indirectBlock.data, i * sizeof(uint64_t));
 
-            // TODO stop at 0? see direct blocks
+             // block id 0 is unused entry
+            if(blockNumber == 0) {
+                continue;
+            }
 
             DataBlock block = getDataBlock(blockNumber);
 
@@ -653,12 +658,21 @@ Util::Array<DirectoryEntry> Lfs::readDirectoryEntries(Inode &dir) {
         for(size_t j = 0; j < BLOCK_SIZE / sizeof(uint64_t); j++) {
             uint64_t indirectBlockNumber = Util::ByteBuffer::readU64(doublyIndirectBlock.data, j * sizeof(uint64_t));
 
-            // TODO stop at 0? see direct blocks
+             // block id 0 is unused entry
+            if(indirectBlockNumber == 0) {
+                continue;
+            }
 
             DataBlock indirectBlock = getDataBlock(indirectBlockNumber);
 
             for(size_t i = 0; i < BLOCK_SIZE / sizeof(uint64_t); i++) {
                 uint64_t blockNumber = Util::ByteBuffer::readU64(indirectBlock.data, i * sizeof(uint64_t));
+
+                // block id 0 is unused entry
+                if(blockNumber == 0) {
+                    continue;
+                }
+
                 DataBlock block = getDataBlock(blockNumber);
 
                 // read all entries of block
