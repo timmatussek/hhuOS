@@ -505,26 +505,26 @@ Inode Lfs::getInode(uint64_t inodeNumber)
         // else load it from disk
         InodeMapEntry entry = inodeMap.get(inodeNumber);
 
+        // read block that contains inode
         uint8_t inodeBuffer[BLOCK_SIZE];
         device->read(inodeBuffer, entry.inodePosition, BLOCK_SIZE);
 
-        // TODO this should use inodeOffset
-
+        // read inode data at offset
         Inode inode;
-        inode.size = Util::ByteBuffer::readU64(inodeBuffer, 0);
-        inode.fileType = inodeBuffer[8];
-        inode.directBlocks[0] = Util::ByteBuffer::readU64(inodeBuffer, 9);
-        inode.directBlocks[1] = Util::ByteBuffer::readU64(inodeBuffer, 17);
-        inode.directBlocks[2] = Util::ByteBuffer::readU64(inodeBuffer, 25);
-        inode.directBlocks[3] = Util::ByteBuffer::readU64(inodeBuffer, 33);
-        inode.directBlocks[4] = Util::ByteBuffer::readU64(inodeBuffer, 41);
-        inode.directBlocks[5] = Util::ByteBuffer::readU64(inodeBuffer, 49);
-        inode.directBlocks[6] = Util::ByteBuffer::readU64(inodeBuffer, 57);
-        inode.directBlocks[7] = Util::ByteBuffer::readU64(inodeBuffer, 65);
-        inode.directBlocks[8] = Util::ByteBuffer::readU64(inodeBuffer, 73);
-        inode.directBlocks[9] = Util::ByteBuffer::readU64(inodeBuffer, 81);
-        inode.indirectBlocks = Util::ByteBuffer::readU64(inodeBuffer, 89);
-        inode.doublyIndirectBlocks = Util::ByteBuffer::readU64(inodeBuffer, 97);
+        inode.size = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 0);
+        inode.fileType = inodeBuffer[entry.inodeOffset + 8];
+        inode.directBlocks[0] = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 9);
+        inode.directBlocks[1] = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 17);
+        inode.directBlocks[2] = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 25);
+        inode.directBlocks[3] = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 33);
+        inode.directBlocks[4] = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 41);
+        inode.directBlocks[5] = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 49);
+        inode.directBlocks[6] = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 57);
+        inode.directBlocks[7] = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 65);
+        inode.directBlocks[8] = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 73);
+        inode.directBlocks[9] = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 81);
+        inode.indirectBlocks = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 89);
+        inode.doublyIndirectBlocks = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 97);
 
         // add to cache
         inodeCache.put(inodeNumber, inode);
