@@ -47,6 +47,26 @@ namespace Util {
         static uint64_t readU64(uint8_t *buffer, size_t offset);
 
         /**
+         * Write a uint32_t in little-endian at offset into buffer.
+         * 
+         * @param buffer A buffer containing bytes.
+         * @param offset An offset in bytes into buffer.
+         * @param data The uint32_t to be written.
+         * 
+         */
+        static void writeU32(uint8_t *buffer, size_t offset, uint32_t data);
+
+        /**
+         * Write a uint64_t in little-endian at offset into buffer.
+         * 
+         * @param buffer A buffer containing bytes.
+         * @param offset An offset in bytes into buffer.
+         * @param data The uint64_t to be written.
+         * 
+         */
+        static void writeU64(uint8_t *buffer, size_t offset, uint64_t data);
+
+        /**
          * Read multiple chars at offset from buffer into a String.
          * 
          * @param buffer A buffer containing bytes.

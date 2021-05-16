@@ -34,6 +34,16 @@
 #define BLOCKS_PER_INDIRECT_BLOCK (BLOCK_SIZE / sizeof(uint64_t))
 
 /**
+ * Size of inode in bytes
+ */
+#define INODE_SIZE 105
+
+/**
+ * Size of inode map entry in bytes
+ */
+#define INODE_MAP_ENTRY_SIZE 20
+
+/**
  * The superblock contains information about the filesystem.
  * It is always at block 0.
  */

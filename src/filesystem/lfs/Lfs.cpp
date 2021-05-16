@@ -78,18 +78,130 @@ void Lfs::reset()
 
 bool Lfs::flush()
 {
-    /* 
-        TODO 
-        write all dirty blocks
-        write all dirty inodes
-        update indode map with new inode positions
-        write inode map
-        write superblock
-    */
-    return false;
+    // TODO flush should not write individual blocks but a whole segment in one
+    
+    // reused block for writes
+    uint8_t blockBuffer[BLOCK_SIZE];
+    // record how many block have been written
+    uint64_t writtenBlocks = 0;
+
+    // TODO write dirty directory entries
+
+    // write all dirty blocks
+    Util::Array<uint64_t> blockNumbers = blockCache.keySet();
+
+    for(int i = 0; i < blockNumbers.length(); i++) {
+        uint64_t n = blockNumbers[i];
+        DataBlock block = blockCache.get(n);
+        if(block.dirty) {
+            device->write(block.data, n * sectorsPerBlock, sectorsPerBlock);
+
+            writtenBlocks++;
+
+            // remove dirty flag
+            block.dirty = false;
+            blockCache.put(n, block);
+        }
+    }
+
+    // write all dirty inodes
+    Util::Array<uint64_t> inodeNumbers = inodeCache.keySet();
+
+    // offset of next inode in current block
+    uint32_t inodeOffset = 0;
+
+    for(int i = 0; i < inodeNumbers.length(); i++) {
+        uint64_t n = inodeNumbers[i];
+        Inode inode = inodeCache.get(n);
+        if(inode.dirty) {
+            // write block if inode does not fit
+            if(BLOCK_SIZE - inodeOffset < INODE_SIZE) {
+                // TODO where goes next block?
+                device->write(blockBuffer, 0, sectorsPerBlock);
+
+                writtenBlocks++;
+
+                inodeOffset = 0;
+            }
+
+            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 0, inode.size);
+            blockBuffer[inodeOffset + 8] = inode.fileType;
+            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 9, inode.directBlocks[0]);
+            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 17, inode.directBlocks[1]);
+            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 25, inode.directBlocks[2]);
+            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 33, inode.directBlocks[3]);
+            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 41, inode.directBlocks[4]);
+            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 49, inode.directBlocks[5]);
+            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 57, inode.directBlocks[6]);
+            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 65, inode.directBlocks[7]);
+            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 73, inode.directBlocks[8]);
+            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 81, inode.directBlocks[9]);
+            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 89, inode.indirectBlocks);
+            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 97, inode.doublyIndirectBlocks);
+
+            // update inode map with new inode position
+            InodeMapEntry entry;
+            entry.inodeOffset = inodeOffset;
+            // TODO current block number
+            entry.inodePosition = 0;
+
+            inodeMap.put(n, entry);
+
+            inodeOffset += INODE_SIZE;
+
+            // remove dirty flag
+            inode.dirty = false;
+            inodeCache.put(n, inode);
+        }
+    }
+
+    // write inode map
+
+    // TODO current block number
+    superblock.inodeMapPosition = 0;
+    superblock.inodeMapSize = 0;
+
+    // offset of next inode map entry in current block
+    uint32_t inodeMapEntryOffset = 0;
+
+    inodeNumbers = inodeMap.keySet();
+    for(int i = 0; i < inodeNumbers.length(); i++) {
+        uint64_t n = inodeNumbers[i];
+        InodeMapEntry entry = inodeMap.get(n);
+
+        // write block if inode map entry does not fit
+        if(BLOCK_SIZE - inodeMapEntryOffset < INODE_MAP_ENTRY_SIZE) {
+            // TODO where goes next block?
+            device->write(blockBuffer, 0, sectorsPerBlock);
+
+            writtenBlocks++;
+            superblock.inodeMapSize++;
+
+            inodeMapEntryOffset = 0;
+        }
+
+        Util::ByteBuffer::writeU64(blockBuffer, inodeMapEntryOffset, n);
+        Util::ByteBuffer::writeU64(blockBuffer, inodeMapEntryOffset + 8, entry.inodePosition);
+        Util::ByteBuffer::writeU32(blockBuffer, inodeMapEntryOffset + 16, entry.inodeOffset);
+
+        inodeMapEntryOffset += INODE_MAP_ENTRY_SIZE;
+    }
+
+    // write superblock
+    Util::ByteBuffer::writeU32(blockBuffer, 0, superblock.magic);
+
+    Util::ByteBuffer::writeU64(blockBuffer, 4, superblock.inodeMapPosition);
+    Util::ByteBuffer::writeU64(blockBuffer, 12, superblock.inodeMapSize);
+    // TODO update before write
+    Util::ByteBuffer::writeU64(blockBuffer, 20, superblock.currentSegment); 
+
+    device->write(blockBuffer, 0, sectorsPerBlock);
+
+    return true;
 }
 
 DataBlock Lfs::getDataBlockFromFile(Inode &inode, uint64_t blockNumber) {
+    // TODO block number could be zero
     // determine if block is in direct, indirect or doubly indirect list
     if(blockNumber < 10) {
         return getDataBlock(inode.directBlocks[blockNumber]);
@@ -112,6 +224,7 @@ DataBlock Lfs::getDataBlockFromFile(Inode &inode, uint64_t blockNumber) {
 }
 
 void Lfs::setDataBlockFromFile(Inode &inode, uint64_t blockNumber, DataBlock block) {
+    // TODO block number could be zero
     // determine if block is in direct, indirect or doubly indirect list
     if(blockNumber < 10) {
         return blockCache.put(inode.directBlocks[blockNumber], block);
