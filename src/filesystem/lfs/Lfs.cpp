@@ -57,14 +57,12 @@ void Lfs::reset()
     Util::ArrayList<DirectoryEntry> entries;
 
     DirectoryEntry entryCurrentDir;
-    entryCurrentDir.dirty = true;
     entryCurrentDir.filename = ".";
     entryCurrentDir.inodeNumber = 1;
 
     entries.add(entryCurrentDir);
 
     DirectoryEntry entryParentDir;
-    entryParentDir.dirty = true;
     entryParentDir.filename = "..";
     entryParentDir.inodeNumber = 1;
 
@@ -85,7 +83,7 @@ bool Lfs::flush()
     // record how many block have been written
     uint64_t writtenBlocks = 0;
 
-    // write dirty directory entries
+    // write directory entries
     Util::Array<uint64_t> inodeNumbers = directoryEntryCache.keySet();
 
     for(int i = 0; i < inodeNumbers.length(); i++) {
@@ -425,7 +423,6 @@ bool Lfs::createNode(const String &path, uint8_t fileType)
     Util::ArrayList<DirectoryEntry> parentDirectoryEntries(readDirectoryEntries(parentInode));
 
     DirectoryEntry currentFile;
-    currentFile.dirty = true;
     currentFile.filename = getFileName(path);
     currentFile.inodeNumber = inodeNumber;
 
@@ -438,14 +435,12 @@ bool Lfs::createNode(const String &path, uint8_t fileType)
         Util::ArrayList<DirectoryEntry> entries;
 
         DirectoryEntry entryCurrentDir;
-        entryCurrentDir.dirty = true;
         entryCurrentDir.filename = ".";
         entryCurrentDir.inodeNumber = inodeNumber;
 
         entries.add(entryCurrentDir);
 
         DirectoryEntry entryParentDir;
-        entryParentDir.dirty = true;
         entryParentDir.filename = "..";
         entryParentDir.inodeNumber = parentInodeNumber;
 
@@ -541,9 +536,9 @@ bool Lfs::deleteNode(const String &path)
         DirectoryEntry entry = oldParentDirectoryEntries.get(i);
 
         if(entry.inodeNumber == inodeNumber) {
+            // TODO directory entries need size for deletion
             // remove entry by setting its inodeNumber invalid
             entry.inodeNumber = 0;
-            entry.dirty = true;
         }
 
         newParentDirectoryEntries.add(entry);

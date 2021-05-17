@@ -143,11 +143,6 @@ struct DataBlock
  */
 struct DirectoryEntry {
     /**
-     * True if the in-memory directory entry changed and needs to be written to disk.
-     */
-    bool dirty;
-
-    /**
      * Inode number of entry
      */
     uint64_t inodeNumber;
