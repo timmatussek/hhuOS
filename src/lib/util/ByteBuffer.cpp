@@ -35,6 +35,14 @@ namespace Util {
             | (((uint64_t)buffer[offset + 7]) << 56);
     }
 
+    String ByteBuffer::readString(uint8_t *buffer, size_t offset, size_t length) {
+        String result;
+        for(size_t i = 0; i < length; i++) {
+            result += String(buffer[offset + i]);
+        }
+        return result;
+    }
+
     void ByteBuffer::writeU32(uint8_t *buffer, size_t offset, uint32_t data) {
         buffer[offset] = data;
         buffer[offset + 1] = data >> 8;
@@ -53,12 +61,10 @@ namespace Util {
         buffer[offset + 7] = data >> 56;
     }
 
-    String ByteBuffer::readString(uint8_t *buffer, size_t offset, size_t length) {
-        String result;
-        for(size_t i = 0; i < length; i++) {
-            result += String(buffer[offset + i]);
+    void ByteBuffer::writeString(uint8_t *buffer, size_t offset, String string) {
+        for(size_t i = 0; i < string.length(); i++) {
+            buffer[offset + i] = string[i];
         }
-        return result;
     }
 
 }

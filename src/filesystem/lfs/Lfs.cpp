@@ -79,13 +79,59 @@ void Lfs::reset()
 bool Lfs::flush()
 {
     // TODO flush should not write individual blocks but a whole segment in one
-    
+
     // reused block for writes
     uint8_t blockBuffer[BLOCK_SIZE];
     // record how many block have been written
     uint64_t writtenBlocks = 0;
 
-    // TODO write dirty directory entries
+    // write dirty directory entries
+    Util::Array<uint64_t> inodeNumbers = directoryEntryCache.keySet();
+
+    for(int i = 0; i < inodeNumbers.length(); i++) {
+        uint64_t n = inodeNumbers[i];
+        Util::Array<DirectoryEntry> entries = directoryEntryCache.get(n);
+        Inode inode = inodeCache.get(n);
+
+        // remove all blocks from inode
+        // TODO remove blocks from block cache?
+        for(int j = 0; j < 10; j++) {
+            inode.directBlocks[j] = 0;
+        }
+        inode.indirectBlocks = 0;
+        inode.doublyIndirectBlocks = 0;
+
+        // TODO find a way that not all directory entries need to be rewritten
+
+        // offset of next directory entry in current block
+        uint64_t directoryEntryOffset = 0;
+        uint64_t currentBlock = 0;
+
+        for(int j = 0; j < entries.length(); j++) {
+            DirectoryEntry entry = entries[j];
+
+            // directory entries have varying sizes
+            uint64_t entrySize = 8 + 4 + entry.filename.length();
+
+            // write block if next directory entry does not fit
+            if(BLOCK_SIZE - directoryEntryOffset < entrySize) {
+                DataBlock block;
+                block.dirty = true;
+                memcpy(block.data, blockBuffer, BLOCK_SIZE);
+                setDataBlockFromFile(inode, currentBlock, block);
+                directoryEntryOffset = 0;
+                currentBlock++;
+                writtenBlocks++;
+            }
+
+            // write directory entry
+            Util::ByteBuffer::writeU64(blockBuffer, directoryEntryOffset + 0, entry.inodeNumber);
+            Util::ByteBuffer::writeU32(blockBuffer, directoryEntryOffset + 8, entry.filename.length());
+            Util::ByteBuffer::writeString(blockBuffer, directoryEntryOffset + 12, entry.filename);
+
+            directoryEntryOffset += entrySize;
+        }
+    }
 
     // write all dirty blocks
     Util::Array<uint64_t> blockNumbers = blockCache.keySet();
@@ -105,7 +151,7 @@ bool Lfs::flush()
     }
 
     // write all dirty inodes
-    Util::Array<uint64_t> inodeNumbers = inodeCache.keySet();
+    inodeNumbers = inodeCache.keySet();
 
     // offset of next inode in current block
     uint32_t inodeOffset = 0;
@@ -124,6 +170,7 @@ bool Lfs::flush()
                 inodeOffset = 0;
             }
 
+            // write inode
             Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 0, inode.size);
             blockBuffer[inodeOffset + 8] = inode.fileType;
             Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 9, inode.directBlocks[0]);
@@ -180,6 +227,7 @@ bool Lfs::flush()
             inodeMapEntryOffset = 0;
         }
 
+        // write inode map entry
         Util::ByteBuffer::writeU64(blockBuffer, inodeMapEntryOffset, n);
         Util::ByteBuffer::writeU64(blockBuffer, inodeMapEntryOffset + 8, entry.inodePosition);
         Util::ByteBuffer::writeU32(blockBuffer, inodeMapEntryOffset + 16, entry.inodeOffset);

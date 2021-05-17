@@ -46,6 +46,17 @@ namespace Util {
          */
         static uint64_t readU64(uint8_t *buffer, size_t offset);
 
+         /**
+         * Read multiple chars at offset from buffer into a String.
+         * 
+         * @param buffer A buffer containing bytes.
+         * @param offset An offset in bytes into buffer.
+         * @param length The length of the String.
+         * 
+         * @return String of chars at offset in buffer
+         */
+        static String readString(uint8_t *buffer, size_t offset, size_t length);
+
         /**
          * Write a uint32_t in little-endian at offset into buffer.
          * 
@@ -67,15 +78,14 @@ namespace Util {
         static void writeU64(uint8_t *buffer, size_t offset, uint64_t data);
 
         /**
-         * Read multiple chars at offset from buffer into a String.
+         * Write String at offset into buffer.
          * 
          * @param buffer A buffer containing bytes.
          * @param offset An offset in bytes into buffer.
-         * @param length The length of the String.
+         * @param string a String.
          * 
-         * @return String of chars at offset in buffer
          */
-        static String readString(uint8_t *buffer, size_t offset, size_t length);
+        static void writeString(uint8_t *buffer, size_t offset, String string);
 
     };
 
