@@ -17,6 +17,10 @@
 
 namespace Util {
 
+    uint8_t ByteBuffer::readU8(uint8_t *buffer, size_t offset) {
+        return buffer[offset];
+    }
+
     uint32_t ByteBuffer::readU32(uint8_t *buffer, size_t offset) {
         return ((uint32_t)buffer[offset]) 
             | (((uint32_t)buffer[offset + 1]) << 8) 
@@ -41,6 +45,10 @@ namespace Util {
             result += String(buffer[offset + i]);
         }
         return result;
+    }
+
+    void ByteBuffer::writeU8(uint8_t *buffer, size_t offset, uint8_t data) {
+        buffer[offset] = data;
     }
 
     void ByteBuffer::writeU32(uint8_t *buffer, size_t offset, uint32_t data) {

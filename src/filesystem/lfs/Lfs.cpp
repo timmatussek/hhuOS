@@ -170,7 +170,7 @@ bool Lfs::flush()
 
             // write inode
             Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 0, inode.size);
-            blockBuffer[inodeOffset + 8] = inode.fileType;
+            Util::ByteBuffer::writeU8(blockBuffer, inodeOffset + 8, inode.fileType);
             Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 9, inode.directBlocks[0]);
             Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 17, inode.directBlocks[1]);
             Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 25, inode.directBlocks[2]);
@@ -675,7 +675,7 @@ Inode Lfs::getInode(uint64_t inodeNumber)
         // read inode data at offset
         Inode inode;
         inode.size = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 0);
-        inode.fileType = inodeBuffer[entry.inodeOffset + 8];
+        inode.fileType = Util::ByteBuffer::readU8(inodeBuffer, entry.inodeOffset + 8);
         inode.directBlocks[0] = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 9);
         inode.directBlocks[1] = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 17);
         inode.directBlocks[2] = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 25);

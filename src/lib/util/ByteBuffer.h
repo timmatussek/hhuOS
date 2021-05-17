@@ -27,6 +27,16 @@ namespace Util {
     class ByteBuffer {
     public:
         /**
+         * Read a uint8_t at offset from buffer.
+         * 
+         * @param buffer A buffer containing bytes.
+         * @param offset An offset in bytes into buffer.
+         * 
+         * @return uint8_t value at offset in buffer
+         */
+        static uint8_t readU8(uint8_t *buffer, size_t offset);
+
+        /**
          * Read a uint32_t in little-endian at offset from buffer.
          * 
          * @param buffer A buffer containing bytes.
@@ -56,6 +66,16 @@ namespace Util {
          * @return String of chars at offset in buffer
          */
         static String readString(uint8_t *buffer, size_t offset, size_t length);
+
+        /**
+         * Write a uint8_t at offset into buffer.
+         * 
+         * @param buffer A buffer containing bytes.
+         * @param offset An offset in bytes into buffer.
+         * @param data The uint8_t to be written.
+         * 
+         */
+        static void writeU8(uint8_t *buffer, size_t offset, uint8_t data);
 
         /**
          * Write a uint32_t in little-endian at offset into buffer.
