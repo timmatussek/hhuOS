@@ -76,13 +76,6 @@ void Lfs::reset()
 
 bool Lfs::flush()
 {
-    // TODO flush should not write individual blocks but a whole segment in one
-
-    // reused block for writes
-    uint8_t blockBuffer[BLOCK_SIZE];
-    // record how many block have been written
-    uint64_t writtenBlocks = 0;
-
     // write directory entries
     Util::Array<uint64_t> inodeNumbers = directoryEntryCache.keySet();
 
@@ -119,7 +112,6 @@ bool Lfs::flush()
                 setDataBlockFromFile(inode, currentBlock, block);
                 directoryEntryOffset = 0;
                 currentBlock++;
-                writtenBlocks++;
             }
 
             // write directory entry
@@ -133,14 +125,28 @@ bool Lfs::flush()
 
     // write all dirty blocks
     Util::Array<uint64_t> blockNumbers = blockCache.keySet();
+    int blockInSegment = 0;
 
     for(int i = 0; i < blockNumbers.length(); i++) {
         uint64_t n = blockNumbers[i];
         DataBlock block = blockCache.get(n);
         if(block.dirty) {
-            device->write(block.data, n * sectorsPerBlock, sectorsPerBlock);
+            
+            // check if segment full
+            if(blockInSegment * BLOCK_SIZE >= SEGMENT_SIZE) {
+                // write out segment
+                // calculate offset and size of segment. offset is incremented by one block for superblock
+                device->write(segmentBuffer, superblock.currentSegment * BLOCKS_PER_SEGMENT * sectorsPerBlock + 1 * sectorsPerBlock, BLOCKS_PER_SEGMENT * sectorsPerBlock);
 
-            writtenBlocks++;
+                superblock.currentSegment++;
+
+                blockInSegment = 0;
+            }
+
+            // copy data to segment buffer
+            memcpy(segmentBuffer + blockInSegment * BLOCK_SIZE, block.data, BLOCK_SIZE);
+
+            blockInSegment++;
 
             // remove dirty flag
             block.dirty = false;
@@ -160,10 +166,22 @@ bool Lfs::flush()
         if(inode.dirty) {
             // write block if inode does not fit
             if(BLOCK_SIZE - inodeOffset < INODE_SIZE) {
-                // TODO where goes next block?
-                device->write(blockBuffer, 0, sectorsPerBlock);
 
-                writtenBlocks++;
+                // check if segment full
+                if(blockInSegment * BLOCK_SIZE >= SEGMENT_SIZE) {
+                    // write out segment
+                    // calculate offset and size of segment. offset is incremented by one block for superblock
+                    device->write(segmentBuffer, superblock.currentSegment * BLOCKS_PER_SEGMENT * sectorsPerBlock + 1 * sectorsPerBlock, BLOCKS_PER_SEGMENT * sectorsPerBlock);
+
+                    superblock.currentSegment++;
+
+                    blockInSegment = 0;
+                }
+
+                // copy data to segment buffer
+                memcpy(segmentBuffer + blockInSegment * BLOCK_SIZE, blockBuffer, BLOCK_SIZE);
+
+                blockInSegment++;
 
                 inodeOffset = 0;
             }
@@ -187,8 +205,8 @@ bool Lfs::flush()
             // update inode map with new inode position
             InodeMapEntry entry;
             entry.inodeOffset = inodeOffset;
-            // TODO current block number
-            entry.inodePosition = 0;
+            // current block number
+            entry.inodePosition = superblock.currentSegment * BLOCKS_PER_SEGMENT + blockInSegment;
 
             inodeMap.put(n, entry);
 
@@ -202,8 +220,8 @@ bool Lfs::flush()
 
     // write inode map
 
-    // TODO current block number
-    superblock.inodeMapPosition = 0;
+    // current block number
+    superblock.inodeMapPosition = superblock.currentSegment * BLOCKS_PER_SEGMENT + blockInSegment;
     superblock.inodeMapSize = 0;
 
     // offset of next inode map entry in current block
@@ -216,13 +234,26 @@ bool Lfs::flush()
 
         // write block if inode map entry does not fit
         if(BLOCK_SIZE - inodeMapEntryOffset < INODE_MAP_ENTRY_SIZE) {
-            // TODO where goes next block?
-            device->write(blockBuffer, 0, sectorsPerBlock);
 
-            writtenBlocks++;
-            superblock.inodeMapSize++;
+            // check if segment full
+            if(blockInSegment * BLOCK_SIZE >= SEGMENT_SIZE) {
+                // write out segment
+                // calculate offset and size of segment. offset is incremented by one block for superblock
+                device->write(segmentBuffer, superblock.currentSegment * BLOCKS_PER_SEGMENT * sectorsPerBlock + 1 * sectorsPerBlock, BLOCKS_PER_SEGMENT * sectorsPerBlock);
+
+                superblock.currentSegment++;
+
+                blockInSegment = 0;
+            }
+
+            // copy data to segment buffer
+            memcpy(segmentBuffer + blockInSegment * BLOCK_SIZE, blockBuffer, BLOCK_SIZE);
+
+            blockInSegment++;
 
             inodeMapEntryOffset = 0;
+
+            superblock.inodeMapSize++;
         }
 
         // write inode map entry
@@ -233,12 +264,16 @@ bool Lfs::flush()
         inodeMapEntryOffset += INODE_MAP_ENTRY_SIZE;
     }
 
+    // write partial segment
+    // calculate offset and size of segment. offset is incremented by one block for superblock
+    device->write(segmentBuffer, superblock.currentSegment * BLOCKS_PER_SEGMENT * sectorsPerBlock + 1  * sectorsPerBlock, BLOCKS_PER_SEGMENT * sectorsPerBlock);
+
+    superblock.currentSegment++;
+
     // write superblock
     Util::ByteBuffer::writeU32(blockBuffer, 0, superblock.magic);
-
     Util::ByteBuffer::writeU64(blockBuffer, 4, superblock.inodeMapPosition);
     Util::ByteBuffer::writeU64(blockBuffer, 12, superblock.inodeMapSize);
-    // TODO update before write
     Util::ByteBuffer::writeU64(blockBuffer, 20, superblock.currentSegment); 
 
     device->write(blockBuffer, 0, sectorsPerBlock);

@@ -21,12 +21,22 @@
 /**
  * Magic number to identify valid lfs.
  */
-#define LFS_MAGIC 0x4c465321
+#define LFS_MAGIC 0x2153464c
 
 /**
  * Smallest addressable unit of lfs.
  */
 #define BLOCK_SIZE 4096
+
+/**
+ * Size of a segment. Must be a multiple of BLOCK_SIZE.
+ */
+#define SEGMENT_SIZE (BLOCK_SIZE * 256)
+
+/**
+ * How many blocks are in a segment.
+ */
+#define BLOCKS_PER_SEGMENT (SEGMENT_SIZE / BLOCK_SIZE)
 
 /**
  * How many block addresses are stored in a indirect block.
@@ -216,6 +226,16 @@ private:
      * Maps inode number to its directory entries.
      */
     Util::HashMap<uint64_t, Util::Array<DirectoryEntry>> directoryEntryCache;
+
+    /**
+     * Buffer for various block operations.
+     */
+    uint8_t blockBuffer[BLOCK_SIZE];
+
+     /**
+     * Buffer for various segment operations.
+     */
+    uint8_t segmentBuffer[SEGMENT_SIZE];
 
     /**
      * Get the file or directory name of a path.
