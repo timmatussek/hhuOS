@@ -20,6 +20,10 @@
 
 Lfs::Lfs(StorageDevice *device) : device(device)
 {
+    // alloc buffers
+    blockBuffer = new uint8_t[BLOCK_SIZE];
+    segmentBuffer = new uint8_t[SEGMENT_SIZE];
+
     sectorsPerBlock = BLOCK_SIZE / device->getSectorSize();
     valid = readLfsFromDevice();
 }
@@ -27,6 +31,9 @@ Lfs::Lfs(StorageDevice *device) : device(device)
 Lfs::~Lfs()
 {
     flush();
+
+    delete[] blockBuffer;
+    delete[] segmentBuffer;
 }
 
 void Lfs::reset()
@@ -74,7 +81,7 @@ void Lfs::reset()
     nextInodeNumber = 2;
 }
 
-bool Lfs::flush()
+void Lfs::flush()
 {
     // write directory entries
     Util::Array<uint64_t> inodeNumbers = directoryEntryCache.keySet();
@@ -121,6 +128,16 @@ bool Lfs::flush()
 
             directoryEntryOffset += entrySize;
         }
+
+        // write partial block
+        DataBlock block;
+        block.dirty = true;
+        memcpy(block.data, blockBuffer, BLOCK_SIZE);
+        //setDataBlockFromFile(inode, currentBlock, block);
+
+        // update inode in cache
+        inode.dirty = true;
+        inodeCache.put(n, inode);
     }
 
     // write all dirty blocks
@@ -216,6 +233,22 @@ bool Lfs::flush()
             inode.dirty = false;
             inodeCache.put(n, inode);
         }
+
+        // write partial block
+        // check if segment full
+        if(blockInSegment * BLOCK_SIZE >= SEGMENT_SIZE) {
+            // write out segment
+            // calculate offset and size of segment. offset is incremented by one block for superblock
+            device->write(segmentBuffer, superblock.currentSegment * BLOCKS_PER_SEGMENT * sectorsPerBlock + 1 * sectorsPerBlock, BLOCKS_PER_SEGMENT * sectorsPerBlock);
+
+            superblock.currentSegment++;
+
+            blockInSegment = 0;
+        }
+
+        // copy data to segment buffer
+        memcpy(segmentBuffer + blockInSegment * BLOCK_SIZE, blockBuffer, BLOCK_SIZE);
+        blockInSegment++;
     }
 
     // write inode map
@@ -264,6 +297,23 @@ bool Lfs::flush()
         inodeMapEntryOffset += INODE_MAP_ENTRY_SIZE;
     }
 
+    // write partial block
+    // check if segment full
+    if(blockInSegment * BLOCK_SIZE >= SEGMENT_SIZE) {
+        // write out segment
+        // calculate offset and size of segment. offset is incremented by one block for superblock
+        device->write(segmentBuffer, superblock.currentSegment * BLOCKS_PER_SEGMENT * sectorsPerBlock + 1 * sectorsPerBlock, BLOCKS_PER_SEGMENT * sectorsPerBlock);
+
+        superblock.currentSegment++;
+
+        blockInSegment = 0;
+    }
+
+    // copy data to segment buffer
+    memcpy(segmentBuffer + blockInSegment * BLOCK_SIZE, blockBuffer, BLOCK_SIZE);
+    blockInSegment++;
+    superblock.inodeMapSize++;
+
     // write partial segment
     // calculate offset and size of segment. offset is incremented by one block for superblock
     device->write(segmentBuffer, superblock.currentSegment * BLOCKS_PER_SEGMENT * sectorsPerBlock + 1  * sectorsPerBlock, BLOCKS_PER_SEGMENT * sectorsPerBlock);
@@ -278,7 +328,8 @@ bool Lfs::flush()
 
     device->write(blockBuffer, 0, sectorsPerBlock);
 
-    return true;
+    // reset segment buffer
+    nextBlockInSegment = 0;
 }
 
 DataBlock Lfs::getDataBlockFromFile(Inode &inode, uint64_t blockNumber) {
@@ -305,24 +356,110 @@ DataBlock Lfs::getDataBlockFromFile(Inode &inode, uint64_t blockNumber) {
 }
 
 void Lfs::setDataBlockFromFile(Inode &inode, uint64_t blockNumber, DataBlock block) {
-    // TODO block number could be zero
     // determine if block is in direct, indirect or doubly indirect list
     if(blockNumber < 10) {
+        // if there is non yet, allocate new block
+        if(inode.directBlocks[blockNumber] == 0) {
+            inode.directBlocks[blockNumber] = superblock.currentSegment * BLOCKS_PER_SEGMENT + nextBlockInSegment;
+            nextBlockInSegment++;
+        }
+
         return blockCache.put(inode.directBlocks[blockNumber], block);
     } else if(blockNumber < 10 + BLOCKS_PER_INDIRECT_BLOCK) {
-        DataBlock indirectBlock = getDataBlock(inode.indirectBlocks);
+
+        DataBlock indirectBlock;
+
+        // if there is no indirect block yet, allocate new block
+        if(inode.indirectBlocks == 0) {
+            inode.indirectBlocks = superblock.currentSegment * BLOCKS_PER_SEGMENT + nextBlockInSegment;
+            nextBlockInSegment++;
+
+            // make indirect block empty
+            memset(indirectBlock.data, 0, BLOCK_SIZE);
+            indirectBlock.dirty = true;
+
+            // add to cache
+            blockCache.put(inode.indirectBlocks, indirectBlock);
+        } else {
+            indirectBlock = getDataBlock(inode.indirectBlocks);
+        }
+
+
         uint64_t indirectBlockNumber = Util::ByteBuffer::readU64(indirectBlock.data, (blockNumber - 10) * sizeof(uint64_t));
+        // if there is non yet, allocate new block
+        if(indirectBlockNumber == 0) {
+            indirectBlockNumber = superblock.currentSegment * BLOCKS_PER_SEGMENT + nextBlockInSegment;
+            nextBlockInSegment++;
+
+            // write newly allocated number to indirect block
+            Util::ByteBuffer::writeU64(indirectBlock.data, (blockNumber - 10) * sizeof(uint64_t), indirectBlockNumber);
+            indirectBlock.dirty = true;
+            blockCache.put(inode.indirectBlocks, indirectBlock);
+        }
+
         return blockCache.put(indirectBlockNumber, block);
     } else {
-        DataBlock doublyIndirectBlock = getDataBlock(inode.doublyIndirectBlocks);
+
+        DataBlock doublyIndirectBlock;
+
+        // if there is no doubly indirect block yet, allocate new block
+        if(inode.doublyIndirectBlocks == 0) {
+            inode.doublyIndirectBlocks = superblock.currentSegment * BLOCKS_PER_SEGMENT + nextBlockInSegment;
+            nextBlockInSegment++;
+
+            // make indirect block empty
+            memset(doublyIndirectBlock.data, 0, BLOCK_SIZE);
+            doublyIndirectBlock.dirty = true;
+
+            // add to cache
+            blockCache.put(inode.doublyIndirectBlocks, doublyIndirectBlock);
+
+        } else {
+            doublyIndirectBlock = getDataBlock(inode.doublyIndirectBlocks);
+        }
 
         uint64_t n = blockNumber - 10 - BLOCKS_PER_INDIRECT_BLOCK;
         uint64_t j = n / BLOCKS_PER_INDIRECT_BLOCK;
         uint64_t i = n % BLOCKS_PER_INDIRECT_BLOCK;
 
         uint64_t doublyIndirectBlockNumber = Util::ByteBuffer::readU64(doublyIndirectBlock.data, j * sizeof(uint64_t));
-        DataBlock indirectBlock = getDataBlock(doublyIndirectBlockNumber);
+
+        DataBlock indirectBlock;
+
+        // if there is no indirect block yet, allocate new block
+        if(doublyIndirectBlockNumber == 0) {
+            doublyIndirectBlockNumber = superblock.currentSegment * BLOCKS_PER_SEGMENT + nextBlockInSegment;
+            nextBlockInSegment++;
+
+            // make indirect block empty
+            memset(indirectBlock.data, 0, BLOCK_SIZE);
+            indirectBlock.dirty = true;
+
+            // add to cache
+            blockCache.put(doublyIndirectBlockNumber, indirectBlock);
+
+            // write newly allocated number to doubly indirect block
+            Util::ByteBuffer::writeU64(doublyIndirectBlock.data, j * sizeof(uint64_t), doublyIndirectBlockNumber);
+            doublyIndirectBlock.dirty = true;
+            blockCache.put(inode.doublyIndirectBlocks, doublyIndirectBlock);
+
+        } else {
+            indirectBlock = getDataBlock(doublyIndirectBlockNumber);
+        }
+
         uint64_t indirectBlockNumber = Util::ByteBuffer::readU64(indirectBlock.data, i * sizeof(uint64_t));
+
+        // if there is non yet, allocate new block
+        if(indirectBlockNumber == 0) {
+            indirectBlockNumber = superblock.currentSegment * BLOCKS_PER_SEGMENT + nextBlockInSegment;
+            nextBlockInSegment++;
+
+            // write newly allocated number to indirect block
+            Util::ByteBuffer::writeU64(indirectBlock.data, i * sizeof(uint64_t), indirectBlockNumber);
+            indirectBlock.dirty = true;
+            blockCache.put(doublyIndirectBlockNumber, indirectBlock);
+        }
+
         return blockCache.put(indirectBlockNumber, block);
     }
 }
@@ -734,19 +871,18 @@ Inode Lfs::getInode(uint64_t inodeNumber)
 bool Lfs::readLfsFromDevice()
 {
     // first block contains information about filesystem
-    uint8_t superblockBuffer[BLOCK_SIZE];
-    device->read(superblockBuffer, 0, sectorsPerBlock);
+    device->read(blockBuffer, 0, sectorsPerBlock);
 
-    superblock.magic = Util::ByteBuffer::readU32(superblockBuffer, 0);
+    superblock.magic = Util::ByteBuffer::readU32(blockBuffer, 0);
 
     if (superblock.magic != LFS_MAGIC)
     {
         return false;
     }
 
-    superblock.inodeMapPosition = Util::ByteBuffer::readU64(superblockBuffer, 4);
-    superblock.inodeMapSize = Util::ByteBuffer::readU64(superblockBuffer, 12);
-    superblock.currentSegment = Util::ByteBuffer::readU64(superblockBuffer, 20);
+    superblock.inodeMapPosition = Util::ByteBuffer::readU64(blockBuffer, 4);
+    superblock.inodeMapSize = Util::ByteBuffer::readU64(blockBuffer, 12);
+    superblock.currentSegment = Util::ByteBuffer::readU64(blockBuffer, 20);
 
     uint8_t inodeMapBuffer[BLOCK_SIZE * superblock.inodeMapSize];
     device->read(inodeMapBuffer, superblock.inodeMapPosition * sectorsPerBlock, superblock.inodeMapSize * sectorsPerBlock);

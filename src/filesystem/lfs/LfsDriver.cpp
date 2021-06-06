@@ -26,9 +26,8 @@ bool LfsDriver::createFs(StorageDevice *device)
 {
     Lfs *tmpLfs = new Lfs(device);
     tmpLfs->reset();
-    bool res = tmpLfs->flush();
     delete tmpLfs;
-    return res;
+    return true;
 }
 
 bool LfsDriver::mount(StorageDevice *device)

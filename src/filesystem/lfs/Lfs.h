@@ -230,12 +230,17 @@ private:
     /**
      * Buffer for various block operations.
      */
-    uint8_t blockBuffer[BLOCK_SIZE];
+    uint8_t* blockBuffer;
 
-     /**
+    /**
      * Buffer for various segment operations.
      */
-    uint8_t segmentBuffer[SEGMENT_SIZE];
+    uint8_t* segmentBuffer;
+
+    /**
+     * Next empty block in segment buffer.
+     */
+    size_t nextBlockInSegment = 0;
 
     /**
      * Get the file or directory name of a path.
@@ -341,10 +346,8 @@ public:
 
     /**
      * Forces all caches to be written to disk.
-     * 
-     * @return true if successful
      */
-    bool flush();
+    void flush();
 
     /**
      * Read bytes from the file's data.
