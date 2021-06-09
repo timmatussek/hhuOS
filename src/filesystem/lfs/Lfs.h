@@ -303,7 +303,7 @@ private:
      * Write a data block realtive to file into block cache.
      * 
      */
-    void setDataBlockFromFile(Inode &inode, uint64_t blockNumber, DataBlock block);
+    void setDataBlockFromFile(Inode &inode, uint64_t blockNumber, DataBlock &block);
 
      /**
      * Reads all directory entries of a directory.

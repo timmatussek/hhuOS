@@ -133,7 +133,7 @@ void Lfs::flush()
         DataBlock block;
         block.dirty = true;
         memcpy(block.data, blockBuffer, BLOCK_SIZE);
-        //setDataBlockFromFile(inode, currentBlock, block);
+        setDataBlockFromFile(inode, currentBlock, block);
 
         // update inode in cache
         inode.dirty = true;
@@ -141,34 +141,37 @@ void Lfs::flush()
     }
 
     // write all dirty blocks
-    Util::Array<uint64_t> blockNumbers = blockCache.keySet();
     int blockInSegment = 0;
 
-    for(int i = 0; i < blockNumbers.length(); i++) {
-        uint64_t n = blockNumbers[i];
-        DataBlock block = blockCache.get(n);
-        if(block.dirty) {
-            
-            // check if segment full
-            if(blockInSegment * BLOCK_SIZE >= SEGMENT_SIZE) {
-                // write out segment
-                // calculate offset and size of segment. offset is incremented by one block for superblock
-                device->write(segmentBuffer, superblock.currentSegment * BLOCKS_PER_SEGMENT * sectorsPerBlock + 1 * sectorsPerBlock, BLOCKS_PER_SEGMENT * sectorsPerBlock);
-
-                superblock.currentSegment++;
-
-                blockInSegment = 0;
-            }
-
-            // copy data to segment buffer
-            memcpy(segmentBuffer + blockInSegment * BLOCK_SIZE, block.data, BLOCK_SIZE);
-
-            blockInSegment++;
-
-            // remove dirty flag
-            block.dirty = false;
-            blockCache.put(n, block);
+    // start at current segment and copy eah block to buffer
+    // TODO cannot write more than one segment??
+    for(int i = superblock.currentSegment * BLOCKS_PER_SEGMENT; i < BLOCKS_PER_SEGMENT; i++) {
+        // check if reached last block
+        if(!blockCache.containsKey(i)) {
+            break;
         }
+
+        DataBlock block = blockCache.get(i);
+
+        // check if segment full
+        if(blockInSegment * BLOCK_SIZE >= SEGMENT_SIZE) {
+            // write out segment
+            // calculate offset and size of segment. offset is incremented by one block for superblock
+            device->write(segmentBuffer, superblock.currentSegment * BLOCKS_PER_SEGMENT * sectorsPerBlock + 1 * sectorsPerBlock, BLOCKS_PER_SEGMENT * sectorsPerBlock);
+
+            superblock.currentSegment++;
+
+            blockInSegment = 0;
+        }
+
+        // copy data to segment buffer
+        memcpy(segmentBuffer + blockInSegment * BLOCK_SIZE, block.data, BLOCK_SIZE);
+
+        blockInSegment++;
+
+        // remove dirty flag
+        block.dirty = false;
+        blockCache.put(i, block);
     }
 
     // write all dirty inodes
@@ -355,7 +358,7 @@ DataBlock Lfs::getDataBlockFromFile(Inode &inode, uint64_t blockNumber) {
     }
 }
 
-void Lfs::setDataBlockFromFile(Inode &inode, uint64_t blockNumber, DataBlock block) {
+void Lfs::setDataBlockFromFile(Inode &inode, uint64_t blockNumber, DataBlock &block) {
     // determine if block is in direct, indirect or doubly indirect list
     if(blockNumber < 10) {
         // if there is non yet, allocate new block
