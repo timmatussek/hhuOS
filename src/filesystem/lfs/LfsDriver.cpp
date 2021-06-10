@@ -24,16 +24,17 @@ String LfsDriver::getTypeName()
 
 bool LfsDriver::createFs(StorageDevice *device)
 {
+    // use a temporary lfs to format a disk
     Lfs *tmpLfs = new Lfs(device);
-    tmpLfs->reset();
+    tmpLfs->flush();
     delete tmpLfs;
     return true;
 }
 
 bool LfsDriver::mount(StorageDevice *device)
 {
-    this->lfs = new Lfs(device);
-    return this->lfs->isValid();
+    this->lfs = new Lfs(device, true);
+    return true;
 }
 
 Util::SmartPointer<FsNode> LfsDriver::getNode(const String &path)

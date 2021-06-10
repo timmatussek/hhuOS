@@ -44,6 +44,11 @@
 #define BLOCKS_PER_INDIRECT_BLOCK (BLOCK_SIZE / sizeof(uint64_t))
 
 /**
+ * How many block addresses are stored in a indirect block.
+ */
+#define BLOCKS_PER_DOUBLY_INDIRECT_BLOCK (BLOCKS_PER_INDIRECT_BLOCK * BLOCKS_PER_INDIRECT_BLOCK)
+
+/**
  * Size of inode in bytes
  */
 #define INODE_SIZE 105
@@ -133,22 +138,6 @@ struct Inode
 };
 
 /**
- * A data block contains actual data of a file.
- */
-struct DataBlock
-{
-    /**
-     * True if the in-memory datablock changed and needs to be written to disk.
-     */
-    bool dirty;
-
-    /**
-     * The actual bytes of data.
-     */
-    uint8_t data[BLOCK_SIZE];
-};
-
-/**
  * A directory contains a list of directory entries.
  */
 struct DirectoryEntry {
@@ -180,9 +169,10 @@ private:
     StorageDevice *device = nullptr;
 
     /**
-     * True if device currently contains a valid lfs.
+     * True if there are changes in memory that need to be flushed
+     * to disk.
      */
-    bool valid;
+    bool dirty;
 
     /**
      * Keeps track of the next unused inode number.
@@ -212,13 +202,6 @@ private:
      * Maps an inode number to its inode.
      */
     Util::HashMap<uint64_t, Inode> inodeCache;
-
-    /**
-     * In-memory cache of blocks.
-     * 
-     * Maps a block number to its data block.
-     */
-    Util::HashMap<uint64_t, DataBlock> blockCache;
 
      /**
      * In-memory cache of directory entries.
@@ -278,39 +261,12 @@ private:
      */
     Inode getInode(uint64_t inodeNumber);
 
-    /**
-     * Initilize caches with data from disk
-     * 
-     * @return false if disk does not conatin a valid lfs
-     */
-    bool readLfsFromDevice();
-
-    /**
-     * Read a data block.
-     * 
-     * @return DataBlock for blockNumber
-     */
-    DataBlock getDataBlock(uint64_t blockNumber);
-
-    /**
-     * Read a data block realtive to file.
-     * 
-     * @return DataBlock for blockNumber from inodes data block tables
-     */
-    DataBlock getDataBlockFromFile(Inode &inode, uint64_t blockNumber);
-
-    /**
-     * Write a data block realtive to file into block cache.
-     * 
-     */
-    void setDataBlockFromFile(Inode &inode, uint64_t blockNumber, DataBlock &block);
-
      /**
      * Reads all directory entries of a directory.
      * 
      * @return an array of directory entries
      */
-    Util::Array<DirectoryEntry> readDirectoryEntries(Inode &dir);
+    Util::Array<DirectoryEntry> readDirectoryEntries(uint64_t dirInodeNumber, Inode &dir);
 
     /**
      * Rounds up an address to the nearest multiple of
@@ -328,21 +284,43 @@ private:
      */
     uint64_t roundDownBlockAddress(uint64_t addr);
 
+    /**
+     * 
+     * Read a block from a file into buffer.
+     * 
+     * @param inode inode of the file
+     * @param blockNumberInFile relative block number in file
+     * @param buffer buffer where result block is stored
+     * 
+     */
+    void getBlockInFile(Inode &inode, uint64_t blockNumberInFile, uint8_t* buffer);
+
+    /**
+     * 
+     * Write a block to a file. Will allocate a new block and 
+     * write data from buffer to it.
+     * 
+     * @param inode inode of the file
+     * @param blockNumberInFile relative block number in file
+     * @param buffer buffer with data
+     * 
+     */
+    void setBlockInFile(Inode &inode, uint64_t blockNumberInFile, uint8_t* buffer);
+
 public:
     /**
      * Constructor.
+     * 
+     * Initialize an empty lfs.
+     * 
+     * @param mount If true the lfs is read from device, otherwise it is a fresh empty one
      */
-    Lfs(StorageDevice *device);
+    Lfs(StorageDevice *device, bool mount = false);
 
     /**
      * Destructor.
      */
     ~Lfs();
-
-    /**
-     * Resets the current lfs to be a fresh empty one.
-     */
-    void reset();
 
     /**
      * Forces all caches to be written to disk.
@@ -419,11 +397,6 @@ public:
      * @param path The path to a file
      */
     Util::Array<String> getChildren(const String &path);
-
-    /**
-     * Get if device contains a valid lfs.
-     */
-    bool isValid();
 };
 
 #endif
