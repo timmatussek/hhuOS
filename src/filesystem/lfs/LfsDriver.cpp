@@ -39,6 +39,11 @@ bool LfsDriver::mount(StorageDevice *device)
 
 Util::SmartPointer<FsNode> LfsDriver::getNode(const String &path)
 {
+    // return nullptr if file does not exist
+    if(this->lfs->getFileType(path) == 0) {
+        return Util::SmartPointer<FsNode>(nullptr);
+    }
+
     return Util::SmartPointer<FsNode>(new LfsNode(this->lfs, path));
 }
 

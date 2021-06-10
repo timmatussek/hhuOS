@@ -328,9 +328,9 @@ public:
     void flush();
 
     /**
-     * Read bytes from the file's data.
-     * If (pos + numBytes) is greater than the data's length, END_OF_FILE shall be appended.
-     * If pos is greater than the data's length, END_OF_FILE shall be the first and only character,
+     * Read bytes from the files data.
+     * If (pos + numBytes) is greater than the datas length, END_OF_FILE shall be appended.
+     * If pos is greater than the datas length, END_OF_FILE shall be the first and only character,
      * that is written to buf.
      *
      * @param path The path to a file
@@ -343,7 +343,7 @@ public:
     uint64_t readData(const String &path, char *buf, uint64_t pos, uint64_t numBytes);
 
     /**
-     * Write bytes to the file's data. If the offset points right into the existing data,
+     * Write bytes to the files data. If the offset points right into the existing data,
      * it shall be overwritten with the new data. If the new data does not fit, the data size shall be increased.
      * 
      * @param path The path to a file
@@ -384,7 +384,7 @@ public:
     uint8_t getFileType(const String &path);
 
     /**
-     * Get the length (in bytes) of the file's data.
+     * Get the length (in bytes) of the files data.
      * If the node is a directory, this should always return 0.
      * 
      * @param path The path to a file
@@ -392,7 +392,7 @@ public:
     uint64_t getLength(const String &path);
 
     /**
-     * Get the files's children.
+     * Get the files children.
      * 
      * @param path The path to a file
      */

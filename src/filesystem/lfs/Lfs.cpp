@@ -756,9 +756,9 @@ uint64_t Lfs::getInodeNumber(const String &path)
 
         // check if token[i] is in current dir
         bool found = false;
-        for(size_t i = 0; i < directoryEntries.length(); i++) {
-            if(directoryEntries[i].filename == token[i]) {
-                currentInodeNumber = directoryEntries[i].inodeNumber;
+        for(size_t j = 0; j < directoryEntries.length(); j++) {
+            if(directoryEntries[j].filename == token[i]) {
+                currentInodeNumber = directoryEntries[j].inodeNumber;
                 found = true;
                 break;
             }
@@ -826,18 +826,13 @@ Inode Lfs::getInode(uint64_t inodeNumber)
 }
 
 Util::Array<DirectoryEntry> Lfs::readDirectoryEntries(uint64_t dirInodeNumber, Inode &dirInode) {
-    Util::ArrayList<DirectoryEntry> entries;
-
-    // add cached entries
-    // TODO this is wrong and can add duplicate entries
+    // look for cached entries
     if(directoryEntryCache.containsKey(dirInodeNumber)) {
-        Util::Array<DirectoryEntry> cachedEntries = directoryEntryCache.get(dirInodeNumber);
-        for(int i = 0; i < cachedEntries.length(); i++) {
-            entries.add(cachedEntries[i]);
-        }
+        return directoryEntryCache.get(dirInodeNumber);
     }
 
-    // read all directory entries in direct blocks
+    // read all directory entries form disk
+    Util::ArrayList<DirectoryEntry> entries;
     for(size_t i = 0; i < 10 + BLOCKS_PER_INDIRECT_BLOCK + BLOCKS_PER_DOUBLY_INDIRECT_BLOCK; i++) {
 
         // TODO skip unused entries
