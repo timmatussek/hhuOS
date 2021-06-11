@@ -115,7 +115,7 @@ struct Inode
     bool dirty;
 
     /**
-     * Size in bytes of the file. Always 0 for directories.
+     * Size in bytes of the file.
      */
     uint64_t size;
 
@@ -138,29 +138,6 @@ struct Inode
      * Pointer to a block containing pointers to blocks containing pointers to data blocks.
      */
     uint64_t doublyIndirectBlocks;
-};
-
-/**
- * A directory contains a list of directory entries.
- */
-struct DirectoryEntry {
-    /**
-     * Inode number of entry
-     */
-    uint64_t inodeNumber;
-
-    /**
-     * Filename of entry
-     */
-    String filename;
-
-    /**
-     * Compare DirectoryEntries for inequality. (needed for ArrayList)
-     */
-    bool operator!=(const DirectoryEntry &other) {
-        return inodeNumber != other.inodeNumber 
-            || filename != other.filename;
-    }
 };
 
 class Lfs
@@ -210,14 +187,7 @@ private:
      * Maps an inode number to its inode.
      */
     Util::HashMap<uint64_t, Inode> inodeCache;
-
-     /**
-     * In-memory cache of directory entries.
-     * 
-     * Maps inode number to its directory entries.
-     */
-    Util::HashMap<uint64_t, Util::Array<DirectoryEntry>> directoryEntryCache;
-
+    
     /**
      * Buffer for various block operations.
      */
@@ -269,13 +239,6 @@ private:
      */
     Inode getInode(uint64_t inodeNumber);
 
-     /**
-     * Reads all directory entries of a directory.
-     * 
-     * @return an array of directory entries
-     */
-    Util::Array<DirectoryEntry> readDirectoryEntries(uint64_t dirInodeNumber, Inode &dir);
-
     /**
      * Rounds up an address to the nearest multiple of
      * BLOCK_SIZE, if not already a multiple of BLOCK_SIZE.
@@ -314,6 +277,52 @@ private:
      * 
      */
     void setBlockInFile(Inode &inode, uint64_t blockNumberInFile, uint8_t* buffer);
+
+    /**
+     * 
+     * Add a new directory entry to a directory.
+     * Writes new blocks to cache as necessary.
+     * 
+     * @param dirInodeNumber inode number of directory
+     * @param name name of new entry
+     * @param entryInodeNumber inode number of new entry
+     * 
+     */
+    void addDirectoryEntry(uint64_t dirInodeNumber, String name, uint64_t entryInodeNumber);
+
+    /**
+     * 
+     * Delete a directory entry from a directory.
+     * Writes new blocks to cache as necessary.
+     * 
+     * @param dirInodeNumber inode number of directory
+     * @param name name of entry to delete
+     * 
+     */
+    void deleteDirectoryEntry(uint64_t dirInodeNumber, String name);
+
+    /**
+     * 
+     * Find a directory entry from a directory.
+     * 
+     * @param dirInodeNumber inode number of directory
+     * @param name name of entry to find
+     * 
+     * @return inode number of entry if found, 0 otherwise
+     * 
+     */
+    uint64_t findDirectoryEntry(uint64_t dirInodeNumber, String name);
+
+    /**
+     * 
+     * Get an array of names of all directory entries in a directory.
+     * 
+     * @param dirInodeNumber inode number of directory
+     * 
+     * @return array of strings with names of entries
+     * 
+     */
+    Util::Array<String> readDirectoryEntries(uint64_t dirInodeNumber);
 
 public:
     /**

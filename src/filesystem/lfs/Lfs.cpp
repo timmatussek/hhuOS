@@ -31,47 +31,6 @@ Lfs::Lfs(StorageDevice *device, bool mount)
     blockBuffer = new uint8_t[BLOCK_SIZE];
     segmentBuffer = new uint8_t[SEGMENT_SIZE];
 
-    // initialize empty lfs 
-
-    // initialize super block
-    superblock.magic = LFS_MAGIC;
-    superblock.inodeMapPosition = 0;
-    superblock.inodeMapSize = 0;
-    superblock.currentSegment = 0;
-
-    // add empty root dir; root dir is always inode number 1
-    Inode rootDir = {
-        .dirty = true,
-        .size = 0,
-        .fileType = FsNode::FileType::DIRECTORY_FILE,
-        .directBlocks = {0},
-        .indirectBlocks = 0,
-        .doublyIndirectBlocks = 0,
-    };
-    inodeCache.put(1, rootDir);
-
-    // add . and .. (both pointing to / itself)
-    Util::ArrayList<DirectoryEntry> entries;
-
-    DirectoryEntry entryCurrentDir;
-    entryCurrentDir.filename = ".";
-    entryCurrentDir.inodeNumber = 1;
-
-    entries.add(entryCurrentDir);
-
-    DirectoryEntry entryParentDir;
-    entryParentDir.filename = "..";
-    entryParentDir.inodeNumber = 1;
-
-    entries.add(entryParentDir);
-
-    directoryEntryCache.put(1, entries.toArray());
-
-    // as root dir is inode 1, next free inode is 2
-    nextInodeNumber = 2;
-
-    dirty = true;
-
     if(mount) {
         // try to read lfs from disk
 
@@ -80,7 +39,7 @@ Lfs::Lfs(StorageDevice *device, bool mount)
 
         // do nothing if device does not contain lfs signature
         uint32_t magic = Util::ByteBuffer::readU32(blockBuffer, 0);
-        if (superblock.magic != LFS_MAGIC)
+        if (magic != LFS_MAGIC)
         {
             return;
         }
@@ -93,12 +52,12 @@ Lfs::Lfs(StorageDevice *device, bool mount)
         // reset caches and load inode map from disk
         inodeCache.clear();
         inodeMap.clear();
-        directoryEntryCache.clear();
 
-        // TODO should inode map be read in block sized chunks instead?
         // read whole inode map from disk
         uint8_t* inodeMapBuffer = new uint8_t[BLOCK_SIZE * superblock.inodeMapSize];
         device->read(inodeMapBuffer, superblock.inodeMapPosition * sectorsPerBlock, superblock.inodeMapSize * sectorsPerBlock);
+
+        nextInodeNumber = 0;
 
         for (size_t i = 0; i < BLOCK_SIZE * superblock.inodeMapSize; i += 20)
         {
@@ -127,6 +86,34 @@ Lfs::Lfs(StorageDevice *device, bool mount)
         // as we are now in the state the disk is in
         // we do not need to flush until changes appear
         dirty = false;
+    } else {
+        // initialize empty lfs 
+
+        // initialize super block
+        superblock.magic = LFS_MAGIC;
+        superblock.inodeMapPosition = 0;
+        superblock.inodeMapSize = 0;
+        superblock.currentSegment = 0;
+
+        // add empty root dir; root dir is always inode number 1
+        Inode rootDir = {
+            .dirty = true,
+            .size = 0,
+            .fileType = FsNode::FileType::DIRECTORY_FILE,
+            .directBlocks = {0},
+            .indirectBlocks = 0,
+            .doublyIndirectBlocks = 0,
+        };
+        inodeCache.put(1, rootDir);
+
+        // as root dir is inode 1, next free inode is 2
+        nextInodeNumber = 2;
+
+        dirty = true;
+
+        // add . and .. (both pointing to / itself)
+        addDirectoryEntry(1, ".", 1);
+        addDirectoryEntry(1, "..", 1);
     }
 
     // start a thread to flush at regular intervals
@@ -157,63 +144,9 @@ void Lfs::flush()
     // clear garbage out of buffer
     memset(blockBuffer, 0, BLOCK_SIZE);
 
-    // write directory entries
-    Util::Array<uint64_t> inodeNumbers = directoryEntryCache.keySet();
-
-    for(int i = 0; i < inodeNumbers.length(); i++) {
-        uint64_t n = inodeNumbers[i];
-        Util::Array<DirectoryEntry> entries = directoryEntryCache.get(n);
-        Inode inode = inodeCache.get(n);
-
-        // remove all blocks from inode
-        for(int j = 0; j < 10; j++) {
-            inode.directBlocks[j] = 0;
-        }
-        inode.indirectBlocks = 0;
-        inode.doublyIndirectBlocks = 0;
-
-        // TODO find a way that not all directory entries need to be rewritten
-
-        // offset of next directory entry in current block
-        uint64_t directoryEntryOffset = 0;
-        uint64_t nextBlockInFile = 0;
-
-        for(int j = 0; j < entries.length(); j++) {
-            DirectoryEntry entry = entries[j];
-
-            // directory entries have varying sizes
-            uint64_t entrySize = 8 + 4 + entry.filename.length();
-
-            // write block if next directory entry does not fit
-            if(BLOCK_SIZE - directoryEntryOffset < entrySize) {
-                setBlockInFile(inode, nextBlockInFile, blockBuffer);
-                // clear garbage out of buffer
-                memset(blockBuffer, 0, BLOCK_SIZE);
-                directoryEntryOffset = 0;
-                nextBlockInFile++;
-            }
-
-            // write directory entry
-            Util::ByteBuffer::writeU64(blockBuffer, directoryEntryOffset + 0, entry.inodeNumber);
-            Util::ByteBuffer::writeU32(blockBuffer, directoryEntryOffset + 8, entry.filename.length());
-            Util::ByteBuffer::writeString(blockBuffer, directoryEntryOffset + 12, entry.filename);
-
-            directoryEntryOffset += entrySize;
-        }
-
-        // write partial block
-        setBlockInFile(inode, nextBlockInFile, blockBuffer);
-        // clear garbage out of buffer
-        memset(blockBuffer, 0, BLOCK_SIZE);
-
-        // update inode in cache
-        inode.dirty = true;
-        inodeCache.put(n, inode);
-    }
-
     // write all dirty inodes
     // TODO can be written directly to segment buffer instead of blocks first
-    inodeNumbers = inodeCache.keySet();
+    Util::Array<uint64_t> inodeNumbers = inodeCache.keySet();
 
     // offset of next inode in current block
     uint32_t inodeOffset = 0;
@@ -703,34 +636,12 @@ bool Lfs::createNode(const String &path, uint8_t fileType)
 
     // add directory entry in parent
     uint64_t parentInodeNumber = getParentInodeNumber(path);
-    Inode parentInode = getInode(parentInodeNumber);
-    Util::ArrayList<DirectoryEntry> parentDirectoryEntries(readDirectoryEntries(parentInodeNumber, parentInode));
-
-    DirectoryEntry currentFile;
-    currentFile.filename = getFileName(path);
-    currentFile.inodeNumber = inodeNumber;
-
-    parentDirectoryEntries.add(currentFile);
-
-    directoryEntryCache.put(parentInodeNumber, parentDirectoryEntries.toArray());
+    addDirectoryEntry(parentInodeNumber, getFileName(path), inodeNumber);
 
     // if fileType is directory add . and ..
     if(fileType == FsNode::FileType::DIRECTORY_FILE) {
-        Util::ArrayList<DirectoryEntry> entries;
-
-        DirectoryEntry entryCurrentDir;
-        entryCurrentDir.filename = ".";
-        entryCurrentDir.inodeNumber = inodeNumber;
-
-        entries.add(entryCurrentDir);
-
-        DirectoryEntry entryParentDir;
-        entryParentDir.filename = "..";
-        entryParentDir.inodeNumber = parentInodeNumber;
-
-        entries.add(entryParentDir);
-
-        directoryEntryCache.put(inodeNumber, entries.toArray());
+        addDirectoryEntry(inodeNumber, ".", inodeNumber);
+        addDirectoryEntry(inodeNumber, "..", parentInodeNumber);
     }
 
     return true;
@@ -747,24 +658,7 @@ bool Lfs::deleteNode(const String &path)
 
     // delete directory entry in parent
     uint64_t parentInodeNumber = getParentInodeNumber(path);
-    Inode parentInode = getInode(parentInodeNumber);
-    Util::ArrayList<DirectoryEntry> oldParentDirectoryEntries(readDirectoryEntries(parentInodeNumber, parentInode));
-    Util::ArrayList<DirectoryEntry> newParentDirectoryEntries;
-
-    // find current file entry and update it
-    for(size_t i = 0; i < oldParentDirectoryEntries.size(); i++) {
-        DirectoryEntry entry = oldParentDirectoryEntries.get(i);
-
-        if(entry.inodeNumber == inodeNumber) {
-            // TODO directory entries need size for deletion
-            // remove entry by setting its inodeNumber invalid
-            entry.inodeNumber = 0;
-        }
-
-        newParentDirectoryEntries.add(entry);
-    }
-
-    directoryEntryCache.put(parentInodeNumber, newParentDirectoryEntries.toArray());
+    deleteDirectoryEntry(parentInodeNumber, getFileName(path));
 
     // delete cached entries
     if(inodeCache.containsKey(inodeNumber)) {
@@ -819,14 +713,7 @@ Util::Array<String> Lfs::getChildren(const String &path)
         return Util::Array<String>(0);
     }
 
-    Util::Array<DirectoryEntry> directoryEntries = readDirectoryEntries(inodeNumber, inode);
-
-    Util::Array<String> res = Util::Array<String>(directoryEntries.length());
-    for(size_t i = 0; i < directoryEntries.length(); i++) {
-        res[i] = directoryEntries[i].filename;
-    }
-
-    return res;
+    return readDirectoryEntries(inodeNumber);
 }
 
 String Lfs::getFileName(const String &path) {
@@ -844,21 +731,10 @@ uint64_t Lfs::getInodeNumber(const String &path)
 
     for(size_t i = 0; i < token.length(); i++) {
         // find token[i] in currentDir
-        Inode currentDir = getInode(currentInodeNumber);
+        currentInodeNumber = findDirectoryEntry(currentInodeNumber, token[i]);
 
-        Util::Array<DirectoryEntry> directoryEntries = readDirectoryEntries(currentInodeNumber, currentDir);
-
-        // check if token[i] is in current dir
-        bool found = false;
-        for(size_t j = 0; j < directoryEntries.length(); j++) {
-            if(directoryEntries[j].filename == token[i]) {
-                currentInodeNumber = directoryEntries[j].inodeNumber;
-                found = true;
-                break;
-            }
-        }
-
-        if(!found) {
+        // check if it could not be found
+        if(currentInodeNumber == 0) {
             return 0;
         }
     }
@@ -919,44 +795,6 @@ Inode Lfs::getInode(uint64_t inodeNumber)
     }
 }
 
-Util::Array<DirectoryEntry> Lfs::readDirectoryEntries(uint64_t dirInodeNumber, Inode &dirInode) {
-    // look for cached entries
-    if(directoryEntryCache.containsKey(dirInodeNumber)) {
-        return directoryEntryCache.get(dirInodeNumber);
-    }
-
-    // read all directory entries form disk
-    Util::ArrayList<DirectoryEntry> entries;
-    for(size_t i = 0; i < 10 + BLOCKS_PER_INDIRECT_BLOCK + BLOCKS_PER_DOUBLY_INDIRECT_BLOCK; i++) {
-
-        // TODO skip unused entries
-
-        // read block
-        getBlockInFile(dirInode, i, blockBuffer);
-
-        // read all entries of block
-        for(size_t d = 0; d < BLOCK_SIZE;) {
-            DirectoryEntry entry;
-
-            entry.inodeNumber = Util::ByteBuffer::readU64(blockBuffer, d);
-
-            //  inode number 0 signals end of list
-            if(entry.inodeNumber == 0) {
-                return entries.toArray();
-            }
-
-            uint32_t filenameLength = Util::ByteBuffer::readU32(blockBuffer, d + sizeof(entry.inodeNumber));
-            entry.filename = Util::ByteBuffer::readString(blockBuffer, d + 12, filenameLength);
-
-            entries.add(entry);
-
-            d += entry.filename.length() + sizeof(filenameLength) + sizeof(entry.inodeNumber);
-        }
-    }
-
-    return entries.toArray();
-}
-
 uint64_t Lfs::roundUpBlockAddress(uint64_t addr) {
     if(addr % BLOCK_SIZE == 0) {
         return addr;
@@ -969,4 +807,176 @@ uint64_t Lfs::roundDownBlockAddress(uint64_t addr) {
         return addr;
     }
     return (addr / BLOCK_SIZE) * BLOCK_SIZE;
+}
+
+void Lfs::addDirectoryEntry(uint64_t dirInodeNumber, String name, uint64_t entryInodeNumber) {
+    Inode inode = getInode(dirInodeNumber);
+
+    size_t entrySize = name.length() + 12;
+
+    // allocate a buffer for all directory entries
+    // make sure it fits at least all current blocks plus
+    // the new entry
+    size_t bufferSize = roundUpBlockAddress(inode.size + entrySize);
+    uint8_t* buffer = new uint8_t[bufferSize];
+    memset(buffer, 0, bufferSize);
+
+    // read all blocks
+    for(size_t i = 0; i * BLOCK_SIZE < inode.size; i++) {
+        getBlockInFile(inode, i, buffer + i * BLOCK_SIZE);
+    }
+
+    // add new entry at end
+    Util::ByteBuffer::writeU64(buffer, inode.size + 0, entryInodeNumber);
+    Util::ByteBuffer::writeU32(buffer, inode.size + 8, name.length());
+    Util::ByteBuffer::writeString(buffer, inode.size + 12, name);
+
+    // write all blocks
+    for(size_t i = 0; i * BLOCK_SIZE < bufferSize; i++) {
+        setBlockInFile(inode, i, buffer + i * BLOCK_SIZE);
+    }
+
+    delete[] buffer;
+
+    // update inode
+    inode.dirty = true;
+    inode.size += entrySize;
+    inodeCache.put(dirInodeNumber, inode);
+}
+
+void Lfs::deleteDirectoryEntry(uint64_t dirInodeNumber, String name) {
+    Inode inode = getInode(dirInodeNumber);
+
+    // allocate a buffer for all directory entries
+    // make sure it fits at least all current blocks
+    size_t bufferSize = roundUpBlockAddress(inode.size);
+    uint8_t* buffer = new uint8_t[bufferSize];
+    memset(buffer, 0, bufferSize);
+
+    // read all blocks
+    for(size_t i = 0; i * BLOCK_SIZE < inode.size; i++) {
+        getBlockInFile(inode, i, buffer + i * BLOCK_SIZE);
+    }
+
+    // find offset of entry to delete
+    size_t offset = 0;
+    size_t entrySize = 0;
+    bool found = false;
+
+    // read all entries
+    for(size_t d = 0; d < bufferSize;) {
+        uint64_t inodeNumber = Util::ByteBuffer::readU64(buffer, d);
+
+        //  inode number 0 signals end of list
+        if(inodeNumber == 0) {
+            break;
+        }
+
+        uint32_t filenameLength = Util::ByteBuffer::readU32(buffer, d + 8);
+        String filename = Util::ByteBuffer::readString(buffer, d + 12, filenameLength);
+
+        // if found note its offset
+        if(filename == name) {
+            offset = d;
+            entrySize = filenameLength + 8 + 4;
+            found = true;
+            break;
+        }
+
+        // skip to next entry
+        d += filenameLength + 8 + 4;
+    }
+
+    // move all later entries over one spot, thus deleting this entry
+    memmove(buffer + offset, buffer + offset + entrySize, bufferSize - (offset + entrySize));
+
+    // write all blocks
+    for(size_t i = 0; i * BLOCK_SIZE < bufferSize; i++) {
+        setBlockInFile(inode, i, buffer + i * BLOCK_SIZE);
+    }
+
+    delete[] buffer;
+
+    // update inode
+    inode.dirty = true;
+    inode.size -= entrySize;
+    inodeCache.put(dirInodeNumber, inode);
+}
+
+uint64_t Lfs::findDirectoryEntry(uint64_t dirInodeNumber, String name) {
+    Inode inode = getInode(dirInodeNumber);
+
+    // allocate a buffer for all directory entries
+    // make sure it fits at least all current blocks
+    size_t bufferSize = roundUpBlockAddress(inode.size);
+    uint8_t* buffer = new uint8_t[bufferSize];
+    memset(buffer, 0, bufferSize);
+
+    // read all blocks
+    for(size_t i = 0; i * BLOCK_SIZE < inode.size; i++) {
+        getBlockInFile(inode, i, buffer + i * BLOCK_SIZE);
+    }
+
+    // read all entries
+    for(size_t d = 0; d < bufferSize;) {
+        uint64_t inodeNumber = Util::ByteBuffer::readU64(buffer, d);
+
+        //  inode number 0 signals end of list
+        if(inodeNumber == 0) {
+            break;
+        }
+
+        uint32_t filenameLength = Util::ByteBuffer::readU32(buffer, d + 8);
+        String filename = Util::ByteBuffer::readString(buffer, d + 12, filenameLength);
+
+        // if found return its inode number
+        if(filename == name) {
+            return inodeNumber;
+        }
+
+        // skip to next entry
+        d += filenameLength + 8 + 4;
+    }
+
+    delete[] buffer;
+
+    return 0;
+}
+
+Util::Array<String> Lfs::readDirectoryEntries(uint64_t dirInodeNumber) {
+    Inode inode = getInode(dirInodeNumber);
+
+    // allocate a buffer for all directory entries
+    // make sure it fits at least all current blocks
+    size_t bufferSize = roundUpBlockAddress(inode.size);
+    uint8_t* buffer = new uint8_t[bufferSize];
+    memset(buffer, 0, bufferSize);
+
+    // read all blocks
+    Util::ArrayList<String> entries;
+    for(size_t i = 0; i * BLOCK_SIZE < inode.size; i++) {
+        getBlockInFile(inode, i, buffer + i * BLOCK_SIZE);
+    }
+
+    // read all entries
+    for(size_t d = 0; d < bufferSize;) {
+        uint64_t inodeNumber = Util::ByteBuffer::readU64(buffer, d);
+
+        //  inode number 0 signals end of list
+        if(inodeNumber == 0) {
+            break;
+        }
+
+        uint32_t filenameLength = Util::ByteBuffer::readU32(buffer, d + 8);
+        String filename = Util::ByteBuffer::readString(buffer, d + 12, filenameLength);
+
+        entries.add(filename);
+
+        // skip to next entry
+        d += filenameLength + 8 + 4;
+    }
+
+    delete[] buffer;
+
+    return entries.toArray();
 }
