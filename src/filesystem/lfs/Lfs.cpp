@@ -745,11 +745,6 @@ bool Lfs::deleteNode(const String &path)
         return false;
     }
 
-    Inode inode = getInode(inodeNumber);
-
-    inodeCache.remove(inodeNumber);
-    inodeMap.remove(inodeNumber);
-
     // delete directory entry in parent
     uint64_t parentInodeNumber = getParentInodeNumber(path);
     Inode parentInode = getInode(parentInodeNumber);
@@ -770,6 +765,14 @@ bool Lfs::deleteNode(const String &path)
     }
 
     directoryEntryCache.put(parentInodeNumber, newParentDirectoryEntries.toArray());
+
+    // delete cached entries
+    if(inodeCache.containsKey(inodeNumber)) {
+        inodeCache.remove(inodeNumber);
+    }
+    if(inodeMap.containsKey(inodeNumber)) {
+        inodeMap.remove(inodeNumber);
+    }
 
     return true;
 }
