@@ -17,6 +17,8 @@
 #include "Lfs.h"
 #include "lib/util/ByteBuffer.h"
 #include "filesystem/core/Filesystem.h"
+#include "LfsFlushCallback.h"
+#include "kernel/thread/Scheduler.h"
 
 Lfs::Lfs(StorageDevice *device, bool mount)
 {
@@ -93,8 +95,9 @@ Lfs::Lfs(StorageDevice *device, bool mount)
         inodeMap.clear();
         directoryEntryCache.clear();
 
-        // TODO alloc on heap instaed
-        uint8_t inodeMapBuffer[BLOCK_SIZE * superblock.inodeMapSize];
+        // TODO should inode map be read in block sized chunks instead?
+        // read whole inode map from disk
+        uint8_t* inodeMapBuffer = new uint8_t[BLOCK_SIZE * superblock.inodeMapSize];
         device->read(inodeMapBuffer, superblock.inodeMapPosition * sectorsPerBlock, superblock.inodeMapSize * sectorsPerBlock);
 
         for (size_t i = 0; i < BLOCK_SIZE * superblock.inodeMapSize; i += 20)
@@ -119,14 +122,27 @@ Lfs::Lfs(StorageDevice *device, bool mount)
             }
         }
 
+        delete[] inodeMapBuffer;
+
         // as we are now in the state the disk is in
         // we do not need to flush until changes appear
         dirty = false;
     }
+
+    // start a thread to flush at regular intervals
+    flushCallback = new LfsFlushCallback(this);
+    flushCallback->start();
 }
 
 Lfs::~Lfs()
 {
+    // stop thread
+    Kernel::Scheduler &scheduler = Kernel::Scheduler::getInstance();
+    scheduler.kill(*flushCallback);
+
+    // write all cached changes to disk
+    flush();
+
     delete[] blockBuffer;
     delete[] segmentBuffer;
 }
@@ -150,7 +166,6 @@ void Lfs::flush()
         Inode inode = inodeCache.get(n);
 
         // remove all blocks from inode
-        // TODO remove blocks from block cache?
         for(int j = 0; j < 10; j++) {
             inode.directBlocks[j] = 0;
         }
@@ -373,6 +388,9 @@ void Lfs::flush()
 
     // reset segment buffer
     nextBlockInSegment = 0;
+
+    // reset dirty flag
+    dirty = false;
 }
 
 void Lfs::getBlockInFile(Inode &inode, uint64_t blockNumberInFile, uint8_t* buffer) {

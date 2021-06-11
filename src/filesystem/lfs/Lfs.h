@@ -18,6 +18,9 @@
 
 #include "filesystem/core/FsDriver.h"
 
+// forward declare
+class LfsFlushCallback;
+
 /**
  * Magic number to identify valid lfs.
  */
@@ -173,6 +176,11 @@ private:
      * to disk.
      */
     bool dirty;
+
+    /**
+     * A thread that periodically calls flush.
+     */
+    LfsFlushCallback* flushCallback;
 
     /**
      * Keeps track of the next unused inode number.
