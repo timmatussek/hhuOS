@@ -380,16 +380,61 @@ void Lfs::getBlockInFile(Inode &inode, uint64_t blockNumberInFile, uint8_t* buff
     if(blockNumberInFile < 10) {
         // find blocknumber and read block
         uint64_t blockNumber = inode.directBlocks[blockNumberInFile];
-        device->read(buffer, blockNumber * sectorsPerBlock, sectorsPerBlock);
+
+        if(blockNumber == 0) {
+            return;
+        }
+
+        // read data from segment buffer if still in cache
+        if(blockNumber > superblock.currentSegment * BLOCKS_PER_SEGMENT) {
+            uint64_t cachedBlockNumber = blockNumber - superblock.currentSegment * BLOCKS_PER_SEGMENT - 1;
+            memcpy(buffer, segmentBuffer + cachedBlockNumber * BLOCK_SIZE, BLOCK_SIZE);
+        } else {
+            device->read(buffer, blockNumber * sectorsPerBlock, sectorsPerBlock);
+        }
     } else if(blockNumberInFile < 10 + BLOCKS_PER_INDIRECT_BLOCK) {
+
+        if(inode.indirectBlocks == 0) {
+            return;
+        }
+
         // read indirect block to block buffer
-        device->read(blockBuffer, inode.indirectBlocks * sectorsPerBlock, sectorsPerBlock);
+        // read data from segment buffer if still in cache
+        if(inode.indirectBlocks > superblock.currentSegment * BLOCKS_PER_SEGMENT) {
+            uint64_t cachedBlockNumber = inode.indirectBlocks - superblock.currentSegment * BLOCKS_PER_SEGMENT - 1;
+            memcpy(blockBuffer, segmentBuffer + cachedBlockNumber * BLOCK_SIZE, BLOCK_SIZE);
+        } else {
+            device->read(blockBuffer, inode.indirectBlocks * sectorsPerBlock, sectorsPerBlock);
+        }
+
         // find blocknumber and read block
         uint64_t indirectBlockNumber = Util::ByteBuffer::readU64(blockBuffer, (blockNumberInFile - 10) * sizeof(uint64_t));
-        device->read(buffer, indirectBlockNumber * sectorsPerBlock, sectorsPerBlock);
+
+        if(indirectBlockNumber == 0) {
+            return;
+        }
+
+        // read data from segment buffer if still in cache
+        if(indirectBlockNumber > superblock.currentSegment * BLOCKS_PER_SEGMENT) {
+            uint64_t cachedBlockNumber = indirectBlockNumber - superblock.currentSegment * BLOCKS_PER_SEGMENT - 1;
+            memcpy(buffer, segmentBuffer + cachedBlockNumber * BLOCK_SIZE, BLOCK_SIZE);
+        } else {
+            device->read(buffer, indirectBlockNumber * sectorsPerBlock, sectorsPerBlock);
+        }
     } else {
+
+        if(inode.doublyIndirectBlocks == 0) {
+            return;
+        }
+
         // read doubly indirect block to block buffer
-        device->read(blockBuffer, inode.doublyIndirectBlocks * sectorsPerBlock, sectorsPerBlock);
+        // read data from segment buffer if still in cache
+        if(inode.doublyIndirectBlocks > superblock.currentSegment * BLOCKS_PER_SEGMENT) {
+            uint64_t cachedBlockNumber = inode.doublyIndirectBlocks - superblock.currentSegment * BLOCKS_PER_SEGMENT - 1;
+            memcpy(blockBuffer, segmentBuffer + cachedBlockNumber * BLOCK_SIZE, BLOCK_SIZE);
+        } else {
+            device->read(blockBuffer, inode.doublyIndirectBlocks * sectorsPerBlock, sectorsPerBlock);
+        }
         
         // calculate offsets into indirect blocks
         uint64_t n = blockNumberInFile - 10 - BLOCKS_PER_INDIRECT_BLOCK;
@@ -398,11 +443,33 @@ void Lfs::getBlockInFile(Inode &inode, uint64_t blockNumberInFile, uint8_t* buff
 
         // find blocknumber and read indirect block to buffer
         uint64_t doublyIndirectBlockNumber = Util::ByteBuffer::readU64(blockBuffer, j * sizeof(uint64_t));
-        device->read(blockBuffer, doublyIndirectBlockNumber * sectorsPerBlock, sectorsPerBlock);
+
+        if(doublyIndirectBlockNumber == 0) {
+            return;
+        }
+
+        // read data from segment buffer if still in cache
+        if(doublyIndirectBlockNumber > superblock.currentSegment * BLOCKS_PER_SEGMENT) {
+            uint64_t cachedBlockNumber = doublyIndirectBlockNumber - superblock.currentSegment * BLOCKS_PER_SEGMENT - 1;
+            memcpy(blockBuffer, segmentBuffer + cachedBlockNumber * BLOCK_SIZE, BLOCK_SIZE);
+        } else {
+            device->read(blockBuffer, doublyIndirectBlockNumber * sectorsPerBlock, sectorsPerBlock);
+        }
 
         // find blocknumber and read block
         uint64_t indirectBlockNumber = Util::ByteBuffer::readU64(blockBuffer, i * sizeof(uint64_t));
-        device->read(buffer, indirectBlockNumber * sectorsPerBlock, sectorsPerBlock);
+
+        if(indirectBlockNumber == 0) {
+            return;
+        }
+
+        // read data from segment buffer if still in cache
+        if(indirectBlockNumber > superblock.currentSegment * BLOCKS_PER_SEGMENT) {
+            uint64_t cachedBlockNumber = indirectBlockNumber - superblock.currentSegment * BLOCKS_PER_SEGMENT - 1;
+            memcpy(buffer, segmentBuffer + cachedBlockNumber * BLOCK_SIZE, BLOCK_SIZE);
+        } else {
+            device->read(buffer, indirectBlockNumber * sectorsPerBlock, sectorsPerBlock);
+        }
     }
 }
 
@@ -565,6 +632,9 @@ uint64_t Lfs::writeData(const String &path, char *buf, uint64_t pos, uint64_t le
     uint64_t startOffset = roundedPosition - pos;
 
     if(startOffset != 0) {
+        //clean buffer before use
+        memset(blockBuffer, 0, BLOCK_SIZE);
+
         getBlockInFile(inode, startBlock, blockBuffer);
         memcpy(blockBuffer, buf + startBlock * BLOCK_SIZE, startOffset);
         setBlockInFile(inode, startBlock, blockBuffer);
@@ -575,8 +645,11 @@ uint64_t Lfs::writeData(const String &path, char *buf, uint64_t pos, uint64_t le
     uint64_t endOffset = length - roundedLength;
 
     if(endOffset != 0) {
+        //clean buffer before use
+        memset(blockBuffer, 0, BLOCK_SIZE);
+
         getBlockInFile(inode, endBlock, blockBuffer);
-        memcpy(blockBuffer, buf + endBlock * BLOCK_SIZE, startOffset);
+        memcpy(blockBuffer, buf + endBlock * BLOCK_SIZE, endOffset);
         setBlockInFile(inode, endBlock, blockBuffer);
     }
 
@@ -599,7 +672,7 @@ bool Lfs::createNode(const String &path, uint8_t fileType)
         return false;
     }
 
-    Inode inode;
+    Inode inode = {};
 
     inode.dirty = true;
     inode.fileType = fileType;
