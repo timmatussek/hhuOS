@@ -21,17 +21,16 @@
 #include "filesystem/core/FsNode.h"
 #include "Lfs.h"
 
-class LfsNode : public FsNode
-{
+class LfsNode : public FsNode {
 private:
-    Lfs *lfs = nullptr;
-    String path;
+    Lfs &lfs;
+    const String path;
 
 public:
     /**
      * Constructor.
      */
-    LfsNode(Lfs *lfs, const String &path) : lfs(lfs), path(path) {}
+    LfsNode(Lfs &lfs, const String &path) : lfs(lfs), path(path) {}
 
     /**
      * Destructor.

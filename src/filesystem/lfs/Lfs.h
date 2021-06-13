@@ -17,6 +17,10 @@
 #define __Lfs_include__
 
 #include "filesystem/core/FsDriver.h"
+#include "lib/util/SmartPointer.h"
+#include "Superblock.h"
+#include "InodeMapEntry.h"
+#include "Inode.h"
 
 // forward declare
 class LfsFlushCallback;
@@ -51,102 +55,12 @@ class LfsFlushCallback;
  */
 #define BLOCKS_PER_DOUBLY_INDIRECT_BLOCK (BLOCKS_PER_INDIRECT_BLOCK * BLOCKS_PER_INDIRECT_BLOCK)
 
-/**
- * Size of inode in bytes
- */
-#define INODE_SIZE 105
-
-/**
- * Size of inode map entry in bytes
- */
-#define INODE_MAP_ENTRY_SIZE 20
-
-/**
- * The superblock contains information about the filesystem.
- * It is always at block 0.
- */
-struct Superblock
-{
-    /**
-     * Magic number to identify valid lfs.
-     */
-    uint32_t magic;
-
-    /**
-     * The starting block of the current inode map.
-     */
-    uint64_t inodeMapPosition;
-
-    /**
-     * The size in blocks of the current inode map.
-     */
-    uint64_t inodeMapSize;
-
-    /**
-     * The segment number of the next empty segment.
-     */
-    uint64_t currentSegment;
-};
-
-/**
- * The inode map contains the position of each active inode.
- */
-struct InodeMapEntry
-{
-    /**
-     * The block the inode is stored in.
-     */
-    uint64_t inodePosition;
-
-    /**
-     * The offset inside the block.
-     */
-    uint32_t inodeOffset;
-};
-
-/**
- * An inode contains metadata and data blocks of a file or directory.
- */
-struct Inode
-{
-    /**
-     * True if the in-memory inode changed and needs to be written to disk.
-     */
-    bool dirty;
-
-    /**
-     * Size in bytes of the file.
-     */
-    uint64_t size;
-
-    /**
-     * Filetype of file.
-     */
-    uint8_t fileType;
-
-    /**
-     * Pointers to data blocks.
-     */
-    uint64_t directBlocks[10];
-
-    /**
-     * Pointer to a block containing pointers to data blocks.
-     */
-    uint64_t indirectBlocks;
-
-    /**
-     * Pointer to a block containing pointers to blocks containing pointers to data blocks.
-     */
-    uint64_t doublyIndirectBlocks;
-};
-
-class Lfs
-{
+class Lfs {
 private:
     /**
      * The device this filesystem is read from or written to.
      */
-    StorageDevice *device = nullptr;
+    StorageDevice &device;
 
     /**
      * True if there are changes in memory that need to be flushed
@@ -157,7 +71,7 @@ private:
     /**
      * A thread that periodically calls flush.
      */
-    LfsFlushCallback* flushCallback;
+    Util::SmartPointer<LfsFlushCallback> flushCallback;
 
     /**
      * Keeps track of the next unused inode number.
@@ -191,12 +105,13 @@ private:
     /**
      * Buffer for various block operations.
      */
-    uint8_t* blockBuffer;
+    Util::Array<uint8_t> blockBuffer = Util::Array<uint8_t>(BLOCK_SIZE);
 
     /**
      * Buffer for various segment operations.
      */
-    uint8_t* segmentBuffer;
+    Util::Array<uint8_t> segmentBuffer = Util::Array<uint8_t>(SEGMENT_SIZE);
+
 
     /**
      * Next empty block in segment buffer.
@@ -264,7 +179,7 @@ private:
      * @param buffer buffer where result block is stored
      * 
      */
-    void getBlockInFile(Inode &inode, uint64_t blockNumberInFile, uint8_t* buffer);
+    void getBlockInFile(const Inode &inode, uint64_t blockNumberInFile, uint8_t* buffer);
 
     /**
      * 
@@ -276,7 +191,7 @@ private:
      * @param buffer buffer with data
      * 
      */
-    void setBlockInFile(Inode &inode, uint64_t blockNumberInFile, uint8_t* buffer);
+    void setBlockInFile(Inode &inode, uint64_t blockNumberInFile, const uint8_t* buffer);
 
     /**
      * 
@@ -288,7 +203,7 @@ private:
      * @param entryInodeNumber inode number of new entry
      * 
      */
-    void addDirectoryEntry(uint64_t dirInodeNumber, String name, uint64_t entryInodeNumber);
+    void addDirectoryEntry(uint64_t dirInodeNumber, const String &name, uint64_t entryInodeNumber);
 
     /**
      * 
@@ -299,7 +214,7 @@ private:
      * @param name name of entry to delete
      * 
      */
-    void deleteDirectoryEntry(uint64_t dirInodeNumber, String name);
+    void deleteDirectoryEntry(uint64_t dirInodeNumber, const String &name);
 
     /**
      * 
@@ -311,7 +226,7 @@ private:
      * @return inode number of entry if found, 0 otherwise
      * 
      */
-    uint64_t findDirectoryEntry(uint64_t dirInodeNumber, String name);
+    uint64_t findDirectoryEntry(uint64_t dirInodeNumber, const String &name);
 
     /**
      * 
@@ -324,6 +239,22 @@ private:
      */
     Util::Array<String> readDirectoryEntries(uint64_t dirInodeNumber);
 
+    /**
+     * 
+     * Write a block into segment buffer at next free location.
+     * 
+     * @param block data to be written
+     * 
+     */
+    void writeBlockToSegmentBuffer(const uint8_t* block);
+
+    /**
+     * 
+     * Write segment buffer to disk.
+     * 
+     */
+    void flushSegmentBuffer();
+
 public:
     /**
      * Constructor.
@@ -332,7 +263,7 @@ public:
      * 
      * @param mount If true the lfs is read from device, otherwise it is a fresh empty one
      */
-    Lfs(StorageDevice *device, bool mount = false);
+    Lfs(StorageDevice &device, bool mount = false);
 
     /**
      * Destructor.

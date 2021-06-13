@@ -20,58 +20,49 @@
 #include "LfsFlushCallback.h"
 #include "kernel/thread/Scheduler.h"
 
-Lfs::Lfs(StorageDevice *device, bool mount)
-{
-    this->device = device;
+Lfs::Lfs(StorageDevice &device, bool mount) : device(device) {
 
     // sector size is only known at runtime
-    sectorsPerBlock = BLOCK_SIZE / device->getSectorSize();
-
-    // allocate buffers
-    blockBuffer = new uint8_t[BLOCK_SIZE];
-    segmentBuffer = new uint8_t[SEGMENT_SIZE];
+    sectorsPerBlock = BLOCK_SIZE / device.getSectorSize();
 
     if(mount) {
         // try to read lfs from disk
 
         // first block contains information about filesystem
-        device->read(blockBuffer, 0, sectorsPerBlock);
+        device.read(blockBuffer.begin(), 0, sectorsPerBlock);
 
         // do nothing if device does not contain lfs signature
-        uint32_t magic = Util::ByteBuffer::readU32(blockBuffer, 0);
-        if (magic != LFS_MAGIC)
-        {
+        const uint32_t magic = Util::ByteBuffer::readU32(blockBuffer.begin(), 0);
+        if (magic != LFS_MAGIC) {
             return;
         }
 
         superblock.magic = magic;
-        superblock.inodeMapPosition = Util::ByteBuffer::readU64(blockBuffer, 4);
-        superblock.inodeMapSize = Util::ByteBuffer::readU64(blockBuffer, 12);
-        superblock.currentSegment = Util::ByteBuffer::readU64(blockBuffer, 20);
+        superblock.inodeMapPosition = Util::ByteBuffer::readU64(blockBuffer.begin(), 4);
+        superblock.inodeMapSize = Util::ByteBuffer::readU64(blockBuffer.begin(), 12);
+        superblock.currentSegment = Util::ByteBuffer::readU64(blockBuffer.begin(), 20);
 
         // reset caches and load inode map from disk
         inodeCache.clear();
         inodeMap.clear();
 
         // read whole inode map from disk
-        uint8_t* inodeMapBuffer = new uint8_t[BLOCK_SIZE * superblock.inodeMapSize];
-        device->read(inodeMapBuffer, superblock.inodeMapPosition * sectorsPerBlock, superblock.inodeMapSize * sectorsPerBlock);
+        Util::Array<uint8_t> inodeMapBuffer = Util::Array<uint8_t>(BLOCK_SIZE * superblock.inodeMapSize);
+        device.read(inodeMapBuffer.begin(), superblock.inodeMapPosition * sectorsPerBlock, superblock.inodeMapSize * sectorsPerBlock);
 
         nextInodeNumber = 0;
 
-        for (size_t i = 0; i < BLOCK_SIZE * superblock.inodeMapSize; i += 20)
-        {
-            uint64_t inodeNum = Util::ByteBuffer::readU64(inodeMapBuffer, i);
+        for (size_t i = 0; i < BLOCK_SIZE * superblock.inodeMapSize; i += 20) {
+            uint64_t inodeNum = Util::ByteBuffer::readU64(inodeMapBuffer.begin(), i);
 
-            if (inodeNum == 0)
-            {
+            if (inodeNum == 0) {
                 break;
             }
 
-            InodeMapEntry entry;
-
-            entry.inodePosition = Util::ByteBuffer::readU64(inodeMapBuffer, i + 8);
-            entry.inodeOffset = Util::ByteBuffer::readU32(inodeMapBuffer, i + 16);
+            const InodeMapEntry entry {
+                .inodePosition = Util::ByteBuffer::readU64(inodeMapBuffer.begin(), i + 8),
+                .inodeOffset = Util::ByteBuffer::readU32(inodeMapBuffer.begin(), i + 16)
+            };
 
             inodeMap.put(inodeNum, entry);
 
@@ -80,8 +71,6 @@ Lfs::Lfs(StorageDevice *device, bool mount)
                 nextInodeNumber = inodeNum + 1;
             }
         }
-
-        delete[] inodeMapBuffer;
 
         // as we are now in the state the disk is in
         // we do not need to flush until changes appear
@@ -96,7 +85,7 @@ Lfs::Lfs(StorageDevice *device, bool mount)
         superblock.currentSegment = 0;
 
         // add empty root dir; root dir is always inode number 1
-        Inode rootDir = {
+        const Inode rootDir {
             .dirty = true,
             .size = 0,
             .fileType = FsNode::FileType::DIRECTORY_FILE,
@@ -117,207 +106,151 @@ Lfs::Lfs(StorageDevice *device, bool mount)
     }
 
     // start a thread to flush at regular intervals
-    flushCallback = new LfsFlushCallback(this);
+    flushCallback = Util::SmartPointer<LfsFlushCallback>(new LfsFlushCallback(*this));
     flushCallback->start();
 }
 
-Lfs::~Lfs()
-{
+Lfs::~Lfs() {
     // stop thread
-    Kernel::Scheduler &scheduler = Kernel::Scheduler::getInstance();
-    scheduler.kill(*flushCallback);
+    Kernel::Scheduler::getInstance().kill(*flushCallback);
 
     // write all cached changes to disk
     flush();
-
-    delete[] blockBuffer;
-    delete[] segmentBuffer;
 }
 
-void Lfs::flush()
-{
+void Lfs::flush() {
     // do nothing if no changes occurred since last flush
     if(!dirty) {
         return;
     }
 
     // clear garbage out of buffer
-    memset(blockBuffer, 0, BLOCK_SIZE);
+    memset(blockBuffer.begin(), 0, BLOCK_SIZE);
 
     // write all dirty inodes
-    // TODO can be written directly to segment buffer instead of blocks first
     Util::Array<uint64_t> inodeNumbers = inodeCache.keySet();
 
     // offset of next inode in current block
     uint32_t inodeOffset = 0;
 
-    for(int i = 0; i < inodeNumbers.length(); i++) {
-        uint64_t n = inodeNumbers[i];
+    for(size_t i = 0; i < inodeNumbers.length(); i++) {
+        const uint64_t n = inodeNumbers[i];
         Inode inode = inodeCache.get(n);
         if(inode.dirty) {
             // write block if inode does not fit
             if(BLOCK_SIZE - inodeOffset < INODE_SIZE) {
 
-                // check if segment full
+                // write out segment if full
                 if(nextBlockInSegment * BLOCK_SIZE >= SEGMENT_SIZE) {
-                    // write out segment
-                    // calculate offset and size of segment. offset is incremented by one block for superblock
-                    device->write(segmentBuffer, superblock.currentSegment * BLOCKS_PER_SEGMENT * sectorsPerBlock + 1 * sectorsPerBlock, BLOCKS_PER_SEGMENT * sectorsPerBlock);
-
-                    superblock.currentSegment++;
-
-                    nextBlockInSegment = 0;
+                    flushSegmentBuffer();
                 }
 
-                // copy data to segment buffer
-                memcpy(segmentBuffer + nextBlockInSegment * BLOCK_SIZE, blockBuffer, BLOCK_SIZE);
+                writeBlockToSegmentBuffer(blockBuffer.begin());
 
                 // clear garbage out of buffer
-                memset(blockBuffer, 0, BLOCK_SIZE);
-
-                nextBlockInSegment++;
+                memset(blockBuffer.begin(), 0, BLOCK_SIZE);
 
                 inodeOffset = 0;
             }
 
             // write inode
-            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 0, inode.size);
-            Util::ByteBuffer::writeU8(blockBuffer, inodeOffset + 8, inode.fileType);
-            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 9, inode.directBlocks[0]);
-            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 17, inode.directBlocks[1]);
-            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 25, inode.directBlocks[2]);
-            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 33, inode.directBlocks[3]);
-            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 41, inode.directBlocks[4]);
-            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 49, inode.directBlocks[5]);
-            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 57, inode.directBlocks[6]);
-            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 65, inode.directBlocks[7]);
-            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 73, inode.directBlocks[8]);
-            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 81, inode.directBlocks[9]);
-            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 89, inode.indirectBlocks);
-            Util::ByteBuffer::writeU64(blockBuffer, inodeOffset + 97, inode.doublyIndirectBlocks);
+            Util::ByteBuffer::writeU64(blockBuffer.begin(), inodeOffset + 0, inode.size);
+            Util::ByteBuffer::writeU8(blockBuffer.begin(), inodeOffset + 8, inode.fileType);
+            Util::ByteBuffer::writeU64(blockBuffer.begin(), inodeOffset + 9, inode.directBlocks[0]);
+            Util::ByteBuffer::writeU64(blockBuffer.begin(), inodeOffset + 17, inode.directBlocks[1]);
+            Util::ByteBuffer::writeU64(blockBuffer.begin(), inodeOffset + 25, inode.directBlocks[2]);
+            Util::ByteBuffer::writeU64(blockBuffer.begin(), inodeOffset + 33, inode.directBlocks[3]);
+            Util::ByteBuffer::writeU64(blockBuffer.begin(), inodeOffset + 41, inode.directBlocks[4]);
+            Util::ByteBuffer::writeU64(blockBuffer.begin(), inodeOffset + 49, inode.directBlocks[5]);
+            Util::ByteBuffer::writeU64(blockBuffer.begin(), inodeOffset + 57, inode.directBlocks[6]);
+            Util::ByteBuffer::writeU64(blockBuffer.begin(), inodeOffset + 65, inode.directBlocks[7]);
+            Util::ByteBuffer::writeU64(blockBuffer.begin(), inodeOffset + 73, inode.directBlocks[8]);
+            Util::ByteBuffer::writeU64(blockBuffer.begin(), inodeOffset + 81, inode.directBlocks[9]);
+            Util::ByteBuffer::writeU64(blockBuffer.begin(), inodeOffset + 89, inode.indirectBlocks);
+            Util::ByteBuffer::writeU64(blockBuffer.begin(), inodeOffset + 97, inode.doublyIndirectBlocks);
 
             // update inode map with new inode position
-            InodeMapEntry entry;
-            entry.inodeOffset = inodeOffset;
-            // current block number
-            entry.inodePosition = superblock.currentSegment * BLOCKS_PER_SEGMENT + nextBlockInSegment + 1;
+            const InodeMapEntry entry {
+                // current block number
+                .inodePosition = superblock.currentSegment * BLOCKS_PER_SEGMENT + nextBlockInSegment + 1,
+                .inodeOffset = inodeOffset
+            };
 
             inodeMap.put(n, entry);
 
             inodeOffset += INODE_SIZE;
 
-            // remove dirty flag
+            // remove dirty flag from inode
             inode.dirty = false;
             inodeCache.put(n, inode);
         }
 
         // write partial block
-        // check if segment full
+        // write out segment if full
         if(nextBlockInSegment * BLOCK_SIZE >= SEGMENT_SIZE) {
-            // write out segment
-            // calculate offset and size of segment. offset is incremented by one block for superblock
-            device->write(segmentBuffer, superblock.currentSegment * BLOCKS_PER_SEGMENT * sectorsPerBlock + 1 * sectorsPerBlock, BLOCKS_PER_SEGMENT * sectorsPerBlock);
-
-            superblock.currentSegment++;
-
-            nextBlockInSegment = 0;
+            flushSegmentBuffer();
         }
 
-        // copy data to segment buffer
-        memcpy(segmentBuffer + nextBlockInSegment * BLOCK_SIZE, blockBuffer, BLOCK_SIZE);
-        nextBlockInSegment++;
+        writeBlockToSegmentBuffer(blockBuffer.begin());
 
         // clear garbage out of buffer
-        memset(blockBuffer, 0, BLOCK_SIZE);
+        memset(blockBuffer.begin(), 0, BLOCK_SIZE);
     }
 
     // write inode map
-    // TODO can be written directly to segment buffer instead of blocks first
 
     // current block number
     superblock.inodeMapPosition = superblock.currentSegment * BLOCKS_PER_SEGMENT + nextBlockInSegment + 1;
-    superblock.inodeMapSize = 0;
 
-    // offset of next inode map entry in current block
-    uint32_t inodeMapEntryOffset = 0;
+    // offset of next inode map entry, start at next free block in segment
+    uint32_t inodeMapEntryOffset = nextBlockInSegment * BLOCK_SIZE;
 
     inodeNumbers = inodeMap.keySet();
-    for(int i = 0; i < inodeNumbers.length(); i++) {
-        uint64_t n = inodeNumbers[i];
-        InodeMapEntry entry = inodeMap.get(n);
+    for(size_t i = 0; i < inodeNumbers.length(); i++) {
+        const uint64_t n = inodeNumbers[i];
+        const InodeMapEntry entry = inodeMap.get(n);
 
-        // write block if inode map entry does not fit
-        if(BLOCK_SIZE - inodeMapEntryOffset < INODE_MAP_ENTRY_SIZE) {
-
-            // check if segment full
-            if(nextBlockInSegment * BLOCK_SIZE >= SEGMENT_SIZE) {
-                // write out segment
-                // calculate offset and size of segment. offset is incremented by one block for superblock
-                device->write(segmentBuffer, superblock.currentSegment * BLOCKS_PER_SEGMENT * sectorsPerBlock + 1 * sectorsPerBlock, BLOCKS_PER_SEGMENT * sectorsPerBlock);
-
-                superblock.currentSegment++;
-
-                nextBlockInSegment = 0;
-            }
-
-            // copy data to segment buffer
-            memcpy(segmentBuffer + nextBlockInSegment * BLOCK_SIZE, blockBuffer, BLOCK_SIZE);
-
-            // clear garbage out of buffer
-            memset(blockBuffer, 0, BLOCK_SIZE);
-
-            nextBlockInSegment++;
-
+        // write out segment if full
+        if(inodeMapEntryOffset + INODE_MAP_ENTRY_SIZE >= SEGMENT_SIZE) {
+            flushSegmentBuffer();
             inodeMapEntryOffset = 0;
-
-            superblock.inodeMapSize++;
         }
 
         // write inode map entry
-        Util::ByteBuffer::writeU64(blockBuffer, inodeMapEntryOffset, n);
-        Util::ByteBuffer::writeU64(blockBuffer, inodeMapEntryOffset + 8, entry.inodePosition);
-        Util::ByteBuffer::writeU32(blockBuffer, inodeMapEntryOffset + 16, entry.inodeOffset);
+        Util::ByteBuffer::writeU64(segmentBuffer.begin(), inodeMapEntryOffset, n);
+        Util::ByteBuffer::writeU64(segmentBuffer.begin(), inodeMapEntryOffset + 8, entry.inodePosition);
+        Util::ByteBuffer::writeU32(segmentBuffer.begin(), inodeMapEntryOffset + 16, entry.inodeOffset);
 
         inodeMapEntryOffset += INODE_MAP_ENTRY_SIZE;
     }
 
-    // write partial block
-    // check if segment full
-    if(nextBlockInSegment * BLOCK_SIZE >= SEGMENT_SIZE) {
-        // write out segment
-        // calculate offset and size of segment. offset is incremented by one block for superblock
-        device->write(segmentBuffer, superblock.currentSegment * BLOCKS_PER_SEGMENT * sectorsPerBlock + 1 * sectorsPerBlock, BLOCKS_PER_SEGMENT * sectorsPerBlock);
-
-        superblock.currentSegment++;
-
-        nextBlockInSegment = 0;
+    // write out segment if full
+    if(inodeMapEntryOffset + INODE_MAP_ENTRY_SIZE >= SEGMENT_SIZE) {
+        flushSegmentBuffer();
+        inodeMapEntryOffset = 0;
     }
 
-    // copy data to segment buffer
-    memcpy(segmentBuffer + nextBlockInSegment * BLOCK_SIZE, blockBuffer, BLOCK_SIZE);
-
-    // clear garbage out of buffer
-    memset(blockBuffer, 0, BLOCK_SIZE);
-
-    nextBlockInSegment++;
-    superblock.inodeMapSize++;
+    // write empty inode map entry to signal end of list
+    Util::ByteBuffer::writeU64(segmentBuffer.begin(), inodeMapEntryOffset, 0);
+    Util::ByteBuffer::writeU64(segmentBuffer.begin(), inodeMapEntryOffset + 8, 0);
+    Util::ByteBuffer::writeU32(segmentBuffer.begin(), inodeMapEntryOffset + 16, 0);
 
     // write partial segment
-    // calculate offset and size of segment. offset is incremented by one block for superblock
-    device->write(segmentBuffer, superblock.currentSegment * BLOCKS_PER_SEGMENT * sectorsPerBlock + 1  * sectorsPerBlock, BLOCKS_PER_SEGMENT * sectorsPerBlock);
+    flushSegmentBuffer();
 
-    superblock.currentSegment++;
+    // calculate inodeMapSize in blocks
+    superblock.inodeMapSize = roundUpBlockAddress(inodeNumbers.length() * INODE_MAP_ENTRY_SIZE) / BLOCK_SIZE;
 
     // write superblock
-    Util::ByteBuffer::writeU32(blockBuffer, 0, superblock.magic);
-    Util::ByteBuffer::writeU64(blockBuffer, 4, superblock.inodeMapPosition);
-    Util::ByteBuffer::writeU64(blockBuffer, 12, superblock.inodeMapSize);
-    Util::ByteBuffer::writeU64(blockBuffer, 20, superblock.currentSegment); 
+    Util::ByteBuffer::writeU32(blockBuffer.begin(), 0, superblock.magic);
+    Util::ByteBuffer::writeU64(blockBuffer.begin(), 4, superblock.inodeMapPosition);
+    Util::ByteBuffer::writeU64(blockBuffer.begin(), 12, superblock.inodeMapSize);
+    Util::ByteBuffer::writeU64(blockBuffer.begin(), 20, superblock.currentSegment); 
 
-    device->write(blockBuffer, 0, sectorsPerBlock);
+    device.write(blockBuffer.begin(), 0, sectorsPerBlock);
 
     // clear garbage out of buffer
-    memset(blockBuffer, 0, BLOCK_SIZE);
+    memset(blockBuffer.begin(), 0, BLOCK_SIZE);
 
     // reset segment buffer
     nextBlockInSegment = 0;
@@ -326,11 +259,11 @@ void Lfs::flush()
     dirty = false;
 }
 
-void Lfs::getBlockInFile(Inode &inode, uint64_t blockNumberInFile, uint8_t* buffer) {
+void Lfs::getBlockInFile(const Inode &inode, uint64_t blockNumberInFile, uint8_t* buffer) {
     // determine if block is in direct, indirect or doubly indirect list
     if(blockNumberInFile < 10) {
         // find blocknumber and read block
-        uint64_t blockNumber = inode.directBlocks[blockNumberInFile];
+        const uint64_t blockNumber = inode.directBlocks[blockNumberInFile];
 
         if(blockNumber == 0) {
             return;
@@ -338,10 +271,10 @@ void Lfs::getBlockInFile(Inode &inode, uint64_t blockNumberInFile, uint8_t* buff
 
         // read data from segment buffer if still in cache
         if(blockNumber > superblock.currentSegment * BLOCKS_PER_SEGMENT) {
-            uint64_t cachedBlockNumber = blockNumber - superblock.currentSegment * BLOCKS_PER_SEGMENT - 1;
-            memcpy(buffer, segmentBuffer + cachedBlockNumber * BLOCK_SIZE, BLOCK_SIZE);
+            const uint64_t cachedBlockNumber = blockNumber - superblock.currentSegment * BLOCKS_PER_SEGMENT - 1;
+            memcpy(buffer, segmentBuffer.begin() + cachedBlockNumber * BLOCK_SIZE, BLOCK_SIZE);
         } else {
-            device->read(buffer, blockNumber * sectorsPerBlock, sectorsPerBlock);
+            device.read(buffer, blockNumber * sectorsPerBlock, sectorsPerBlock);
         }
     } else if(blockNumberInFile < 10 + BLOCKS_PER_INDIRECT_BLOCK) {
 
@@ -352,14 +285,14 @@ void Lfs::getBlockInFile(Inode &inode, uint64_t blockNumberInFile, uint8_t* buff
         // read indirect block to block buffer
         // read data from segment buffer if still in cache
         if(inode.indirectBlocks > superblock.currentSegment * BLOCKS_PER_SEGMENT) {
-            uint64_t cachedBlockNumber = inode.indirectBlocks - superblock.currentSegment * BLOCKS_PER_SEGMENT - 1;
-            memcpy(blockBuffer, segmentBuffer + cachedBlockNumber * BLOCK_SIZE, BLOCK_SIZE);
+            const uint64_t cachedBlockNumber = inode.indirectBlocks - superblock.currentSegment * BLOCKS_PER_SEGMENT - 1;
+            memcpy(blockBuffer.begin(), segmentBuffer.begin() + cachedBlockNumber * BLOCK_SIZE, BLOCK_SIZE);
         } else {
-            device->read(blockBuffer, inode.indirectBlocks * sectorsPerBlock, sectorsPerBlock);
+            device.read(blockBuffer.begin(), inode.indirectBlocks * sectorsPerBlock, sectorsPerBlock);
         }
 
         // find blocknumber and read block
-        uint64_t indirectBlockNumber = Util::ByteBuffer::readU64(blockBuffer, (blockNumberInFile - 10) * sizeof(uint64_t));
+        const uint64_t indirectBlockNumber = Util::ByteBuffer::readU64(blockBuffer.begin(), (blockNumberInFile - 10) * sizeof(uint64_t));
 
         if(indirectBlockNumber == 0) {
             return;
@@ -367,10 +300,10 @@ void Lfs::getBlockInFile(Inode &inode, uint64_t blockNumberInFile, uint8_t* buff
 
         // read data from segment buffer if still in cache
         if(indirectBlockNumber > superblock.currentSegment * BLOCKS_PER_SEGMENT) {
-            uint64_t cachedBlockNumber = indirectBlockNumber - superblock.currentSegment * BLOCKS_PER_SEGMENT - 1;
-            memcpy(buffer, segmentBuffer + cachedBlockNumber * BLOCK_SIZE, BLOCK_SIZE);
+            const uint64_t cachedBlockNumber = indirectBlockNumber - superblock.currentSegment * BLOCKS_PER_SEGMENT - 1;
+            memcpy(buffer, segmentBuffer.begin() + cachedBlockNumber * BLOCK_SIZE, BLOCK_SIZE);
         } else {
-            device->read(buffer, indirectBlockNumber * sectorsPerBlock, sectorsPerBlock);
+            device.read(buffer, indirectBlockNumber * sectorsPerBlock, sectorsPerBlock);
         }
     } else {
 
@@ -381,19 +314,19 @@ void Lfs::getBlockInFile(Inode &inode, uint64_t blockNumberInFile, uint8_t* buff
         // read doubly indirect block to block buffer
         // read data from segment buffer if still in cache
         if(inode.doublyIndirectBlocks > superblock.currentSegment * BLOCKS_PER_SEGMENT) {
-            uint64_t cachedBlockNumber = inode.doublyIndirectBlocks - superblock.currentSegment * BLOCKS_PER_SEGMENT - 1;
-            memcpy(blockBuffer, segmentBuffer + cachedBlockNumber * BLOCK_SIZE, BLOCK_SIZE);
+            const uint64_t cachedBlockNumber = inode.doublyIndirectBlocks - superblock.currentSegment * BLOCKS_PER_SEGMENT - 1;
+            memcpy(blockBuffer.begin(), segmentBuffer.begin() + cachedBlockNumber * BLOCK_SIZE, BLOCK_SIZE);
         } else {
-            device->read(blockBuffer, inode.doublyIndirectBlocks * sectorsPerBlock, sectorsPerBlock);
+            device.read(blockBuffer.begin(), inode.doublyIndirectBlocks * sectorsPerBlock, sectorsPerBlock);
         }
         
         // calculate offsets into indirect blocks
-        uint64_t n = blockNumberInFile - 10 - BLOCKS_PER_INDIRECT_BLOCK;
-        uint64_t j = n / BLOCKS_PER_INDIRECT_BLOCK;
-        uint64_t i = n % BLOCKS_PER_INDIRECT_BLOCK;
+        const uint64_t n = blockNumberInFile - 10 - BLOCKS_PER_INDIRECT_BLOCK;
+        const uint64_t j = n / BLOCKS_PER_INDIRECT_BLOCK;
+        const uint64_t i = n % BLOCKS_PER_INDIRECT_BLOCK;
 
         // find blocknumber and read indirect block to buffer
-        uint64_t doublyIndirectBlockNumber = Util::ByteBuffer::readU64(blockBuffer, j * sizeof(uint64_t));
+        const uint64_t doublyIndirectBlockNumber = Util::ByteBuffer::readU64(blockBuffer.begin(), j * sizeof(uint64_t));
 
         if(doublyIndirectBlockNumber == 0) {
             return;
@@ -401,14 +334,14 @@ void Lfs::getBlockInFile(Inode &inode, uint64_t blockNumberInFile, uint8_t* buff
 
         // read data from segment buffer if still in cache
         if(doublyIndirectBlockNumber > superblock.currentSegment * BLOCKS_PER_SEGMENT) {
-            uint64_t cachedBlockNumber = doublyIndirectBlockNumber - superblock.currentSegment * BLOCKS_PER_SEGMENT - 1;
-            memcpy(blockBuffer, segmentBuffer + cachedBlockNumber * BLOCK_SIZE, BLOCK_SIZE);
+            const uint64_t cachedBlockNumber = doublyIndirectBlockNumber - superblock.currentSegment * BLOCKS_PER_SEGMENT - 1;
+            memcpy(blockBuffer.begin(), segmentBuffer.begin() + cachedBlockNumber * BLOCK_SIZE, BLOCK_SIZE);
         } else {
-            device->read(blockBuffer, doublyIndirectBlockNumber * sectorsPerBlock, sectorsPerBlock);
+            device.read(blockBuffer.begin(), doublyIndirectBlockNumber * sectorsPerBlock, sectorsPerBlock);
         }
 
         // find blocknumber and read block
-        uint64_t indirectBlockNumber = Util::ByteBuffer::readU64(blockBuffer, i * sizeof(uint64_t));
+        const uint64_t indirectBlockNumber = Util::ByteBuffer::readU64(blockBuffer.begin(), i * sizeof(uint64_t));
 
         if(indirectBlockNumber == 0) {
             return;
@@ -416,92 +349,104 @@ void Lfs::getBlockInFile(Inode &inode, uint64_t blockNumberInFile, uint8_t* buff
 
         // read data from segment buffer if still in cache
         if(indirectBlockNumber > superblock.currentSegment * BLOCKS_PER_SEGMENT) {
-            uint64_t cachedBlockNumber = indirectBlockNumber - superblock.currentSegment * BLOCKS_PER_SEGMENT - 1;
-            memcpy(buffer, segmentBuffer + cachedBlockNumber * BLOCK_SIZE, BLOCK_SIZE);
+            const uint64_t cachedBlockNumber = indirectBlockNumber - superblock.currentSegment * BLOCKS_PER_SEGMENT - 1;
+            memcpy(buffer, segmentBuffer.begin() + cachedBlockNumber * BLOCK_SIZE, BLOCK_SIZE);
         } else {
-            device->read(buffer, indirectBlockNumber * sectorsPerBlock, sectorsPerBlock);
+            device.read(buffer, indirectBlockNumber * sectorsPerBlock, sectorsPerBlock);
         }
     }
 }
 
-void Lfs::setBlockInFile(Inode &inode, uint64_t blockNumberInFile, uint8_t* buffer) {
+void Lfs::setBlockInFile(Inode &inode, uint64_t blockNumberInFile, const uint8_t* buffer) {
     // determine if block is in direct, indirect or doubly indirect list
     if(blockNumberInFile < 10) {
         // allocate new block, add one because first block is one not zero
         inode.directBlocks[blockNumberInFile] = superblock.currentSegment * BLOCKS_PER_SEGMENT + nextBlockInSegment + 1;
 
-        // write data to segment
-        memcpy(segmentBuffer + nextBlockInSegment * BLOCK_SIZE, buffer, BLOCK_SIZE);
-        // increment next free block
-        nextBlockInSegment++;
-        // TODO flush if segment full?
+        writeBlockToSegmentBuffer(buffer);
+
+        // flush if segment full
+        if(nextBlockInSegment >= BLOCKS_PER_SEGMENT) {
+            flush();
+        }
+
     } else if(blockNumberInFile < 10 + BLOCKS_PER_INDIRECT_BLOCK) {
         // allocate 2 new blocks: one for data, one for changed indirect block
-        uint64_t newBlockNumber = superblock.currentSegment * BLOCKS_PER_SEGMENT + nextBlockInSegment + 1;
-        uint64_t newIndirectBlockNumber = newBlockNumber + 1;
+        const uint64_t newBlockNumber = superblock.currentSegment * BLOCKS_PER_SEGMENT + nextBlockInSegment + 1;
+        const uint64_t newIndirectBlockNumber = newBlockNumber + 1;
 
         // read indirect block to block buffer
-        device->read(blockBuffer, inode.indirectBlocks * sectorsPerBlock, sectorsPerBlock);
+        device.read(blockBuffer.begin(), inode.indirectBlocks * sectorsPerBlock, sectorsPerBlock);
         // add block to file
-        Util::ByteBuffer::writeU64(blockBuffer, (blockNumberInFile - 10) * sizeof(uint64_t), newBlockNumber);
+        Util::ByteBuffer::writeU64(blockBuffer.begin(), (blockNumberInFile - 10) * sizeof(uint64_t), newBlockNumber);
         
-        // write data to segment
-        memcpy(segmentBuffer + nextBlockInSegment * BLOCK_SIZE, buffer, BLOCK_SIZE);
-        // increment next free block
-        nextBlockInSegment++;
+        // write data block
+        writeBlockToSegmentBuffer(buffer);
+
+        // flush if segment full
+        if(nextBlockInSegment >= BLOCKS_PER_SEGMENT) {
+            flush();
+        }
 
         // write changed indirect block
-        memcpy(segmentBuffer + nextBlockInSegment * BLOCK_SIZE, blockBuffer, BLOCK_SIZE);
-        // increment next free block
-        nextBlockInSegment++;
+        writeBlockToSegmentBuffer(blockBuffer.begin());
 
-        // TODO flush if segment full?
+        // flush if segment full
+        if(nextBlockInSegment >= BLOCKS_PER_SEGMENT) {
+            flush();
+        }
 
         // change indirect block to new one
         inode.indirectBlocks = newIndirectBlockNumber;
     } else {
-
         // allocate 3 new blocks: one for data, one for changed doubly indirect block, one for changed indirect block
-        uint64_t newBlockNumber = superblock.currentSegment * BLOCKS_PER_SEGMENT + nextBlockInSegment + 1;
-        uint64_t newDoublyIndirectBlockNumber = newBlockNumber + 1;
-        uint64_t newIndirectBlockNumber = newDoublyIndirectBlockNumber + 1;
+        const uint64_t newBlockNumber = superblock.currentSegment * BLOCKS_PER_SEGMENT + nextBlockInSegment + 1;
+        const uint64_t newDoublyIndirectBlockNumber = newBlockNumber + 1;
+        const uint64_t newIndirectBlockNumber = newDoublyIndirectBlockNumber + 1;
 
          // read doubly indirect block to block buffer
-        device->read(blockBuffer, inode.doublyIndirectBlocks * sectorsPerBlock, sectorsPerBlock);
+        device.read(blockBuffer.begin(), inode.doublyIndirectBlocks * sectorsPerBlock, sectorsPerBlock);
         
         // calculate offsets into indirect blocks
-        uint64_t n = blockNumberInFile - 10 - BLOCKS_PER_INDIRECT_BLOCK;
-        uint64_t j = n / BLOCKS_PER_INDIRECT_BLOCK;
-        uint64_t i = n % BLOCKS_PER_INDIRECT_BLOCK;
+        const uint64_t n = blockNumberInFile - 10 - BLOCKS_PER_INDIRECT_BLOCK;
+        const uint64_t j = n / BLOCKS_PER_INDIRECT_BLOCK;
+        const uint64_t i = n % BLOCKS_PER_INDIRECT_BLOCK;
 
         // read old indirect block number
-        uint64_t indirectBlockNumber = Util::ByteBuffer::readU64(blockBuffer, j * sizeof(uint64_t));
+        const uint64_t indirectBlockNumber = Util::ByteBuffer::readU64(blockBuffer.begin(), j * sizeof(uint64_t));
 
         // add new indirect block to doubly indirect block
-        Util::ByteBuffer::writeU64(blockBuffer, j * sizeof(uint64_t), newIndirectBlockNumber);
+        Util::ByteBuffer::writeU64(blockBuffer.begin(), j * sizeof(uint64_t), newIndirectBlockNumber);
         
-        // write data to segment
-        memcpy(segmentBuffer + nextBlockInSegment * BLOCK_SIZE, buffer, BLOCK_SIZE);
-        // increment next free block
-        nextBlockInSegment++;
+        // write data block
+        writeBlockToSegmentBuffer(buffer);
 
-         // write changed doubly indirect block
-        memcpy(segmentBuffer + nextBlockInSegment * BLOCK_SIZE, blockBuffer, BLOCK_SIZE);
-        // increment next free block
-        nextBlockInSegment++;
+        // flush if segment full
+        if(nextBlockInSegment >= BLOCKS_PER_SEGMENT) {
+            flush();
+        }
+
+        // write changed doubly indirect block
+        writeBlockToSegmentBuffer(blockBuffer.begin());
+
+        // flush if segment full
+        if(nextBlockInSegment >= BLOCKS_PER_SEGMENT) {
+            flush();
+        }
 
         // read indirect block to block buffer
-        device->read(blockBuffer, indirectBlockNumber * sectorsPerBlock, sectorsPerBlock);
+        device.read(blockBuffer.begin(), indirectBlockNumber * sectorsPerBlock, sectorsPerBlock);
 
         // add new block to indirect block
-        Util::ByteBuffer::writeU64(blockBuffer, i * sizeof(uint64_t), newBlockNumber);
+        Util::ByteBuffer::writeU64(blockBuffer.begin(), i * sizeof(uint64_t), newBlockNumber);
 
         // write changed indirect block
-        memcpy(segmentBuffer + nextBlockInSegment * BLOCK_SIZE, blockBuffer, BLOCK_SIZE);
-        // increment next free block
-        nextBlockInSegment++;
+        writeBlockToSegmentBuffer(blockBuffer.begin());
 
-        // TODO flush if segment full?
+        // flush if segment full
+        if(nextBlockInSegment >= BLOCKS_PER_SEGMENT) {
+            flush();
+        }
 
         // change doubly indirect block to new one
         inode.doublyIndirectBlocks = newDoublyIndirectBlockNumber;
@@ -511,55 +456,51 @@ void Lfs::setBlockInFile(Inode &inode, uint64_t blockNumberInFile, uint8_t* buff
     dirty = true;
 }
 
-uint64_t Lfs::readData(const String &path, char *buf, uint64_t pos, uint64_t numBytes)
-{
-    uint64_t inodeNumber = getInodeNumber(path);
+uint64_t Lfs::readData(const String &path, char *buf, uint64_t pos, uint64_t numBytes) {
+    const uint64_t inodeNumber = getInodeNumber(path);
 
-    if (inodeNumber == 0)
-    {
+    if (inodeNumber == 0) {
         return 0;
     }
 
-    Inode inode = getInode(inodeNumber);
+    const Inode inode = getInode(inodeNumber);
 
-    uint64_t roundedPosition = roundUpBlockAddress(pos);
-    uint64_t roundedLength  = roundDownBlockAddress(numBytes);
+    const uint64_t roundedPosition = roundUpBlockAddress(pos);
+    const uint64_t roundedLength  = roundDownBlockAddress(numBytes);
 
-    uint64_t start = roundedPosition / BLOCK_SIZE;
-    uint64_t end = (roundedPosition + roundedLength) / BLOCK_SIZE;
+    const uint64_t start = roundedPosition / BLOCK_SIZE;
+    const uint64_t end = (roundedPosition + roundedLength) / BLOCK_SIZE;
 
     for(size_t i = start; i < end; i++) {
-        getBlockInFile(inode, i, blockBuffer);
-        memcpy(buf + i * BLOCK_SIZE, blockBuffer, BLOCK_SIZE);
+        getBlockInFile(inode, i, blockBuffer.begin());
+        memcpy(buf + i * BLOCK_SIZE, blockBuffer.begin(), BLOCK_SIZE);
     }
 
     // if pos is not block aligned we need to read a partial block
-    uint64_t startBlock = pos / BLOCK_SIZE;
-    uint64_t startOffset = roundedPosition - pos;
+    const uint64_t startBlock = pos / BLOCK_SIZE;
+    const uint64_t startOffset = roundedPosition - pos;
 
     if(startOffset != 0) {
-        getBlockInFile(inode, startBlock, blockBuffer);
-        memcpy(buf + startBlock * BLOCK_SIZE, blockBuffer, startOffset);
+        getBlockInFile(inode, startBlock, blockBuffer.begin());
+        memcpy(buf + startBlock * BLOCK_SIZE, blockBuffer.begin(), startOffset);
     }
 
     // if numBytes is not block aligned we need to read a partial block
-    uint64_t endBlock = (pos + numBytes) / BLOCK_SIZE;
-    uint64_t endOffset = numBytes - roundedLength;
+    const uint64_t endBlock = (pos + numBytes) / BLOCK_SIZE;
+    const uint64_t endOffset = numBytes - roundedLength;
 
     if(endOffset != 0) {
-        getBlockInFile(inode, endBlock, blockBuffer);
-        memcpy(buf + endBlock * BLOCK_SIZE, blockBuffer, endOffset);
+        getBlockInFile(inode, endBlock, blockBuffer.begin());
+        memcpy(buf + endBlock * BLOCK_SIZE, blockBuffer.begin(), endOffset);
     }
 
     return numBytes;
 }
 
-uint64_t Lfs::writeData(const String &path, char *buf, uint64_t pos, uint64_t length)
-{
-    uint64_t inodeNumber = getInodeNumber(path);
+uint64_t Lfs::writeData(const String &path, char *buf, uint64_t pos, uint64_t length) {
+    const uint64_t inodeNumber = getInodeNumber(path);
 
-    if (inodeNumber == 0)
-    {
+    if (inodeNumber == 0) {
         return 0;
     }
 
@@ -568,40 +509,40 @@ uint64_t Lfs::writeData(const String &path, char *buf, uint64_t pos, uint64_t le
     // updated inode needs to be rewritten to disk
     inode.dirty = true;
 
-    uint64_t roundedPosition = roundUpBlockAddress(pos);
-    uint64_t roundedLength  = roundDownBlockAddress(length);
+    const uint64_t roundedPosition = roundUpBlockAddress(pos);
+    const uint64_t roundedLength  = roundDownBlockAddress(length);
 
-    uint64_t start = roundedPosition / BLOCK_SIZE;
-    uint64_t end = (roundedPosition + roundedLength) / BLOCK_SIZE;
+    const uint64_t start = roundedPosition / BLOCK_SIZE;
+    const uint64_t end = (roundedPosition + roundedLength) / BLOCK_SIZE;
 
     for(size_t i = start; i < end; i++) {
         setBlockInFile(inode, i, (uint8_t*)buf + i * BLOCK_SIZE);
     }
 
     // if pos is not block aligned we need to read and write a partial block
-    uint64_t startBlock = pos / BLOCK_SIZE;
-    uint64_t startOffset = roundedPosition - pos;
+    const uint64_t startBlock = pos / BLOCK_SIZE;
+    const uint64_t startOffset = roundedPosition - pos;
 
     if(startOffset != 0) {
         //clean buffer before use
-        memset(blockBuffer, 0, BLOCK_SIZE);
+        memset(blockBuffer.begin(), 0, BLOCK_SIZE);
 
-        getBlockInFile(inode, startBlock, blockBuffer);
-        memcpy(blockBuffer, buf + startBlock * BLOCK_SIZE, startOffset);
-        setBlockInFile(inode, startBlock, blockBuffer);
+        getBlockInFile(inode, startBlock, blockBuffer.begin());
+        memcpy(blockBuffer.begin(), buf + startBlock * BLOCK_SIZE, startOffset);
+        setBlockInFile(inode, startBlock, blockBuffer.begin());
     }
 
     // if length is not block aligned we need to read and write a partial block
-    uint64_t endBlock = (pos + length) / BLOCK_SIZE;
-    uint64_t endOffset = length - roundedLength;
+    const uint64_t endBlock = (pos + length) / BLOCK_SIZE;
+    const uint64_t endOffset = length - roundedLength;
 
     if(endOffset != 0) {
         //clean buffer before use
-        memset(blockBuffer, 0, BLOCK_SIZE);
+        memset(blockBuffer.begin(), 0, BLOCK_SIZE);
 
-        getBlockInFile(inode, endBlock, blockBuffer);
-        memcpy(blockBuffer, buf + endBlock * BLOCK_SIZE, endOffset);
-        setBlockInFile(inode, endBlock, blockBuffer);
+        getBlockInFile(inode, endBlock, blockBuffer.begin());
+        memcpy(blockBuffer.begin(), buf + endBlock * BLOCK_SIZE, endOffset);
+        setBlockInFile(inode, endBlock, blockBuffer.begin());
     }
 
     // update file size
@@ -613,20 +554,18 @@ uint64_t Lfs::writeData(const String &path, char *buf, uint64_t pos, uint64_t le
     return length;
 }
 
-bool Lfs::createNode(const String &path, uint8_t fileType)
-{
+bool Lfs::createNode(const String &path, uint8_t fileType) {
     uint64_t inodeNumber = getInodeNumber(path);
 
     // check if already exists
-    if (inodeNumber != 0)
-    {
+    if (inodeNumber != 0) {
         return false;
     }
 
-    Inode inode = {};
-
-    inode.dirty = true;
-    inode.fileType = fileType;
+    const Inode inode {
+        .dirty = true,
+        .fileType = fileType
+    };
 
     // allocate new inode number
     inodeNumber = nextInodeNumber;
@@ -635,7 +574,7 @@ bool Lfs::createNode(const String &path, uint8_t fileType)
     inodeCache.put(inodeNumber, inode);
 
     // add directory entry in parent
-    uint64_t parentInodeNumber = getParentInodeNumber(path);
+    const uint64_t parentInodeNumber = getParentInodeNumber(path);
     addDirectoryEntry(parentInodeNumber, getFileName(path), inodeNumber);
 
     // if fileType is directory add . and ..
@@ -647,17 +586,15 @@ bool Lfs::createNode(const String &path, uint8_t fileType)
     return true;
 }
 
-bool Lfs::deleteNode(const String &path)
-{
-    uint64_t inodeNumber = getInodeNumber(path);
+bool Lfs::deleteNode(const String &path) {
+    const uint64_t inodeNumber = getInodeNumber(path);
 
-    if (inodeNumber == 0)
-    {
+    if (inodeNumber == 0) {
         return false;
     }
 
     // delete directory entry in parent
-    uint64_t parentInodeNumber = getParentInodeNumber(path);
+    const uint64_t parentInodeNumber = getParentInodeNumber(path);
     deleteDirectoryEntry(parentInodeNumber, getFileName(path));
 
     // delete cached entries
@@ -671,43 +608,38 @@ bool Lfs::deleteNode(const String &path)
     return true;
 }
 
-uint8_t Lfs::getFileType(const String &path)
-{
-    uint64_t inodeNumber = getInodeNumber(path);
+uint8_t Lfs::getFileType(const String &path) {
+    const uint64_t inodeNumber = getInodeNumber(path);
 
-    if (inodeNumber == 0)
-    {
+    if (inodeNumber == 0) {
         return 0;
     }
 
-    Inode inode = getInode(inodeNumber);
+    const Inode inode = getInode(inodeNumber);
 
     return inode.fileType;
 }
 
-uint64_t Lfs::getLength(const String &path)
-{
-    uint64_t inodeNumber = getInodeNumber(path);
+uint64_t Lfs::getLength(const String &path) {
+    const uint64_t inodeNumber = getInodeNumber(path);
 
-    if (inodeNumber == 0)
-    {
+    if (inodeNumber == 0) {
         return 0;
     }
 
-    Inode inode = getInode(inodeNumber);
+    const Inode inode = getInode(inodeNumber);
 
     return inode.size;
 }
 
-Util::Array<String> Lfs::getChildren(const String &path)
-{
-    uint64_t inodeNumber = getInodeNumber(path);
+Util::Array<String> Lfs::getChildren(const String &path) {
+    const uint64_t inodeNumber = getInodeNumber(path);
 
     if(inodeNumber == 0) {
         return Util::Array<String>(0);
     }
 
-    Inode inode = getInode(inodeNumber);
+    const Inode inode = getInode(inodeNumber);
 
     if(inode.fileType != FsNode::FileType::DIRECTORY_FILE) {
         return Util::Array<String>(0);
@@ -717,14 +649,13 @@ Util::Array<String> Lfs::getChildren(const String &path)
 }
 
 String Lfs::getFileName(const String &path) {
-    Util::Array<String> token = path.split(Filesystem::SEPARATOR);
+    const Util::Array<String> token = path.split(Filesystem::SEPARATOR);
     return token[token.length() - 1];
 }
 
-uint64_t Lfs::getInodeNumber(const String &path)
-{
+uint64_t Lfs::getInodeNumber(const String &path) {
     // split the path to search left to right
-    Util::Array<String> token = path.split(Filesystem::SEPARATOR);
+    const Util::Array<String> token = path.split(Filesystem::SEPARATOR);
 
     // starting at root directory (always inode 1)
     uint64_t currentInodeNumber = 1;
@@ -743,9 +674,8 @@ uint64_t Lfs::getInodeNumber(const String &path)
 }
 
 uint64_t Lfs::getParentInodeNumber(const String &path) {
-
     // split the path
-    Util::Array<String> token = path.split(Filesystem::SEPARATOR);
+    const Util::Array<String> token = path.split(Filesystem::SEPARATOR);
 
     String parentPath = "/";
 
@@ -758,35 +688,37 @@ uint64_t Lfs::getParentInodeNumber(const String &path) {
 }
 
 
-Inode Lfs::getInode(uint64_t inodeNumber)
-{
+Inode Lfs::getInode(uint64_t inodeNumber) {
     // check if inode is cached
     if(inodeCache.containsKey(inodeNumber)) {
         return inodeCache.get(inodeNumber);
     } else {
         // else load it from disk
-        InodeMapEntry entry = inodeMap.get(inodeNumber);
+        const InodeMapEntry entry = inodeMap.get(inodeNumber);
 
         // read block that contains inode
         uint8_t inodeBuffer[BLOCK_SIZE];
-        device->read(inodeBuffer, entry.inodePosition * sectorsPerBlock, sectorsPerBlock);
+        device.read(inodeBuffer, entry.inodePosition * sectorsPerBlock, sectorsPerBlock);
 
         // read inode data at offset
-        Inode inode;
-        inode.size = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 0);
-        inode.fileType = Util::ByteBuffer::readU8(inodeBuffer, entry.inodeOffset + 8);
-        inode.directBlocks[0] = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 9);
-        inode.directBlocks[1] = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 17);
-        inode.directBlocks[2] = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 25);
-        inode.directBlocks[3] = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 33);
-        inode.directBlocks[4] = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 41);
-        inode.directBlocks[5] = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 49);
-        inode.directBlocks[6] = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 57);
-        inode.directBlocks[7] = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 65);
-        inode.directBlocks[8] = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 73);
-        inode.directBlocks[9] = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 81);
-        inode.indirectBlocks = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 89);
-        inode.doublyIndirectBlocks = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 97);
+        const Inode inode {
+            .size = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 0),
+            .fileType = Util::ByteBuffer::readU8(inodeBuffer, entry.inodeOffset + 8),
+            .directBlocks = {
+                Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 9),
+                Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 17),
+                Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 25),
+                Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 33),
+                Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 41),
+                Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 49),
+                Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 57),
+                Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 65),
+                Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 73),
+                Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 81)
+            },
+            .indirectBlocks = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 89),
+            .doublyIndirectBlocks = Util::ByteBuffer::readU64(inodeBuffer, entry.inodeOffset + 97)
+        };
 
         // add to cache
         inodeCache.put(inodeNumber, inode);
@@ -809,34 +741,32 @@ uint64_t Lfs::roundDownBlockAddress(uint64_t addr) {
     return (addr / BLOCK_SIZE) * BLOCK_SIZE;
 }
 
-void Lfs::addDirectoryEntry(uint64_t dirInodeNumber, String name, uint64_t entryInodeNumber) {
+void Lfs::addDirectoryEntry(uint64_t dirInodeNumber, const String &name, uint64_t entryInodeNumber) {
     Inode inode = getInode(dirInodeNumber);
 
-    size_t entrySize = name.length() + 12;
+    const size_t entrySize = name.length() + 12;
 
     // allocate a buffer for all directory entries
     // make sure it fits at least all current blocks plus
     // the new entry
-    size_t bufferSize = roundUpBlockAddress(inode.size + entrySize);
-    uint8_t* buffer = new uint8_t[bufferSize];
-    memset(buffer, 0, bufferSize);
+    const size_t bufferSize = roundUpBlockAddress(inode.size + entrySize);
+    Util::Array<uint8_t> buffer = Util::Array<uint8_t>(bufferSize);
+    memset(buffer.begin(), 0, bufferSize);
 
     // read all blocks
     for(size_t i = 0; i * BLOCK_SIZE < inode.size; i++) {
-        getBlockInFile(inode, i, buffer + i * BLOCK_SIZE);
+        getBlockInFile(inode, i, buffer.begin() + i * BLOCK_SIZE);
     }
 
     // add new entry at end
-    Util::ByteBuffer::writeU64(buffer, inode.size + 0, entryInodeNumber);
-    Util::ByteBuffer::writeU32(buffer, inode.size + 8, name.length());
-    Util::ByteBuffer::writeString(buffer, inode.size + 12, name);
+    Util::ByteBuffer::writeU64(buffer.begin(), inode.size + 0, entryInodeNumber);
+    Util::ByteBuffer::writeU32(buffer.begin(), inode.size + 8, name.length());
+    Util::ByteBuffer::writeString(buffer.begin(), inode.size + 12, name);
 
     // write all blocks
     for(size_t i = 0; i * BLOCK_SIZE < bufferSize; i++) {
-        setBlockInFile(inode, i, buffer + i * BLOCK_SIZE);
+        setBlockInFile(inode, i, buffer.begin() + i * BLOCK_SIZE);
     }
-
-    delete[] buffer;
 
     // update inode
     inode.dirty = true;
@@ -844,18 +774,18 @@ void Lfs::addDirectoryEntry(uint64_t dirInodeNumber, String name, uint64_t entry
     inodeCache.put(dirInodeNumber, inode);
 }
 
-void Lfs::deleteDirectoryEntry(uint64_t dirInodeNumber, String name) {
+void Lfs::deleteDirectoryEntry(uint64_t dirInodeNumber, const String &name) {
     Inode inode = getInode(dirInodeNumber);
 
     // allocate a buffer for all directory entries
     // make sure it fits at least all current blocks
-    size_t bufferSize = roundUpBlockAddress(inode.size);
-    uint8_t* buffer = new uint8_t[bufferSize];
-    memset(buffer, 0, bufferSize);
+    const size_t bufferSize = roundUpBlockAddress(inode.size);
+    Util::Array<uint8_t> buffer = Util::Array<uint8_t>(bufferSize);
+    memset(buffer.begin(), 0, bufferSize);
 
     // read all blocks
     for(size_t i = 0; i * BLOCK_SIZE < inode.size; i++) {
-        getBlockInFile(inode, i, buffer + i * BLOCK_SIZE);
+        getBlockInFile(inode, i, buffer.begin() + i * BLOCK_SIZE);
     }
 
     // find offset of entry to delete
@@ -865,15 +795,15 @@ void Lfs::deleteDirectoryEntry(uint64_t dirInodeNumber, String name) {
 
     // read all entries
     for(size_t d = 0; d < bufferSize;) {
-        uint64_t inodeNumber = Util::ByteBuffer::readU64(buffer, d);
+        const uint64_t inodeNumber = Util::ByteBuffer::readU64(buffer.begin(), d);
 
         //  inode number 0 signals end of list
         if(inodeNumber == 0) {
             break;
         }
 
-        uint32_t filenameLength = Util::ByteBuffer::readU32(buffer, d + 8);
-        String filename = Util::ByteBuffer::readString(buffer, d + 12, filenameLength);
+        const uint32_t filenameLength = Util::ByteBuffer::readU32(buffer.begin(), d + 8);
+        const String filename = Util::ByteBuffer::readString(buffer.begin(), d + 12, filenameLength);
 
         // if found note its offset
         if(filename == name) {
@@ -887,15 +817,18 @@ void Lfs::deleteDirectoryEntry(uint64_t dirInodeNumber, String name) {
         d += filenameLength + 8 + 4;
     }
 
+    // if not found do nothing
+    if(!found) {
+        return;
+    }
+
     // move all later entries over one spot, thus deleting this entry
-    memmove(buffer + offset, buffer + offset + entrySize, bufferSize - (offset + entrySize));
+    memmove(buffer.begin() + offset, buffer.begin() + offset + entrySize, bufferSize - (offset + entrySize));
 
     // write all blocks
     for(size_t i = 0; i * BLOCK_SIZE < bufferSize; i++) {
-        setBlockInFile(inode, i, buffer + i * BLOCK_SIZE);
+        setBlockInFile(inode, i, buffer.begin() + i * BLOCK_SIZE);
     }
-
-    delete[] buffer;
 
     // update inode
     inode.dirty = true;
@@ -903,31 +836,31 @@ void Lfs::deleteDirectoryEntry(uint64_t dirInodeNumber, String name) {
     inodeCache.put(dirInodeNumber, inode);
 }
 
-uint64_t Lfs::findDirectoryEntry(uint64_t dirInodeNumber, String name) {
+uint64_t Lfs::findDirectoryEntry(uint64_t dirInodeNumber, const String &name) {
     Inode inode = getInode(dirInodeNumber);
 
     // allocate a buffer for all directory entries
     // make sure it fits at least all current blocks
-    size_t bufferSize = roundUpBlockAddress(inode.size);
-    uint8_t* buffer = new uint8_t[bufferSize];
-    memset(buffer, 0, bufferSize);
+    const size_t bufferSize = roundUpBlockAddress(inode.size);
+    Util::Array<uint8_t> buffer = Util::Array<uint8_t>(bufferSize);
+    memset(buffer.begin(), 0, bufferSize);
 
     // read all blocks
     for(size_t i = 0; i * BLOCK_SIZE < inode.size; i++) {
-        getBlockInFile(inode, i, buffer + i * BLOCK_SIZE);
+        getBlockInFile(inode, i, buffer.begin() + i * BLOCK_SIZE);
     }
 
     // read all entries
     for(size_t d = 0; d < bufferSize;) {
-        uint64_t inodeNumber = Util::ByteBuffer::readU64(buffer, d);
+        const uint64_t inodeNumber = Util::ByteBuffer::readU64(buffer.begin(), d);
 
         //  inode number 0 signals end of list
         if(inodeNumber == 0) {
             break;
         }
 
-        uint32_t filenameLength = Util::ByteBuffer::readU32(buffer, d + 8);
-        String filename = Util::ByteBuffer::readString(buffer, d + 12, filenameLength);
+        const uint32_t filenameLength = Util::ByteBuffer::readU32(buffer.begin(), d + 8);
+        const String filename = Util::ByteBuffer::readString(buffer.begin(), d + 12, filenameLength);
 
         // if found return its inode number
         if(filename == name) {
@@ -938,8 +871,6 @@ uint64_t Lfs::findDirectoryEntry(uint64_t dirInodeNumber, String name) {
         d += filenameLength + 8 + 4;
     }
 
-    delete[] buffer;
-
     return 0;
 }
 
@@ -948,27 +879,27 @@ Util::Array<String> Lfs::readDirectoryEntries(uint64_t dirInodeNumber) {
 
     // allocate a buffer for all directory entries
     // make sure it fits at least all current blocks
-    size_t bufferSize = roundUpBlockAddress(inode.size);
-    uint8_t* buffer = new uint8_t[bufferSize];
-    memset(buffer, 0, bufferSize);
+    const size_t bufferSize = roundUpBlockAddress(inode.size);
+    Util::Array<uint8_t> buffer = Util::Array<uint8_t>(bufferSize);
+    memset(buffer.begin(), 0, bufferSize);
 
     // read all blocks
     Util::ArrayList<String> entries;
     for(size_t i = 0; i * BLOCK_SIZE < inode.size; i++) {
-        getBlockInFile(inode, i, buffer + i * BLOCK_SIZE);
+        getBlockInFile(inode, i, buffer.begin() + i * BLOCK_SIZE);
     }
 
     // read all entries
     for(size_t d = 0; d < bufferSize;) {
-        uint64_t inodeNumber = Util::ByteBuffer::readU64(buffer, d);
+        const uint64_t inodeNumber = Util::ByteBuffer::readU64(buffer.begin(), d);
 
         //  inode number 0 signals end of list
         if(inodeNumber == 0) {
             break;
         }
 
-        uint32_t filenameLength = Util::ByteBuffer::readU32(buffer, d + 8);
-        String filename = Util::ByteBuffer::readString(buffer, d + 12, filenameLength);
+        const uint32_t filenameLength = Util::ByteBuffer::readU32(buffer.begin(), d + 8);
+        const String filename = Util::ByteBuffer::readString(buffer.begin(), d + 12, filenameLength);
 
         entries.add(filename);
 
@@ -976,7 +907,21 @@ Util::Array<String> Lfs::readDirectoryEntries(uint64_t dirInodeNumber) {
         d += filenameLength + 8 + 4;
     }
 
-    delete[] buffer;
-
     return entries.toArray();
+}
+
+void Lfs::writeBlockToSegmentBuffer(const uint8_t* block) {
+    // copy data to segment buffer
+    memcpy(segmentBuffer.begin() + nextBlockInSegment * BLOCK_SIZE, block, BLOCK_SIZE);
+    // advance to next block
+    nextBlockInSegment++;
+}
+
+void Lfs::flushSegmentBuffer() {
+    // write segment, calculate offset and size of segment, offset is incremented by one block for superblock
+    device.write(segmentBuffer.begin(), superblock.currentSegment * BLOCKS_PER_SEGMENT * sectorsPerBlock + 1 * sectorsPerBlock, BLOCKS_PER_SEGMENT * sectorsPerBlock);
+    // advance to next segment
+    superblock.currentSegment++;
+    // reset to first block
+    nextBlockInSegment = 0;
 }

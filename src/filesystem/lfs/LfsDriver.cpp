@@ -17,42 +17,35 @@
 #include "LfsDriver.h"
 #include "LfsNode.h"
 
-String LfsDriver::getTypeName()
-{
+String LfsDriver::getTypeName() {
     return TYPE_NAME;
 }
 
-bool LfsDriver::createFs(StorageDevice *device)
-{
+bool LfsDriver::createFs(StorageDevice *device) {
     // use a temporary lfs to format a disk
-    Lfs *tmpLfs = new Lfs(device);
+    Util::SmartPointer<Lfs> tmpLfs = Util::SmartPointer<Lfs>(new Lfs(*device));
     tmpLfs->flush();
-    delete tmpLfs;
     return true;
 }
 
-bool LfsDriver::mount(StorageDevice *device)
-{
-    this->lfs = new Lfs(device, true);
+bool LfsDriver::mount(StorageDevice *device) {
+    this->lfs = Util::SmartPointer<Lfs>(new Lfs(*device, true));
     return true;
 }
 
-Util::SmartPointer<FsNode> LfsDriver::getNode(const String &path)
-{
+Util::SmartPointer<FsNode> LfsDriver::getNode(const String &path) {
     // return nullptr if file does not exist
     if(this->lfs->getFileType(path) == 0) {
         return Util::SmartPointer<FsNode>(nullptr);
     }
 
-    return Util::SmartPointer<FsNode>(new LfsNode(this->lfs, path));
+    return Util::SmartPointer<FsNode>(new LfsNode(*this->lfs, path));
 }
 
-bool LfsDriver::createNode(const String &path, uint8_t fileType)
-{
+bool LfsDriver::createNode(const String &path, uint8_t fileType) {
     return this->lfs->createNode(path, fileType);
 }
 
-bool LfsDriver::deleteNode(const String &path)
-{
+bool LfsDriver::deleteNode(const String &path) {
     return this->lfs->deleteNode(path);
 }

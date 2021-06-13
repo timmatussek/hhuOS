@@ -16,33 +16,27 @@
 
 #include "LfsNode.h"
 
-String LfsNode::getName()
-{
-    Util::Array<String> token = path.split(Filesystem::SEPARATOR);
+String LfsNode::getName() {
+    const Util::Array<String> token = path.split(Filesystem::SEPARATOR);
     return token[token.length() - 1];
 }
 
-uint8_t LfsNode::getFileType()
-{
-    return this->lfs->getFileType(path);
+uint8_t LfsNode::getFileType() {
+    return this->lfs.getFileType(path);
 }
 
-uint64_t LfsNode::getLength()
-{
-    return this->lfs->getLength(path);
+uint64_t LfsNode::getLength() {
+    return this->lfs.getLength(path);
 }
 
-Util::Array<String> LfsNode::getChildren()
-{
-    return this->lfs->getChildren(path);
+Util::Array<String> LfsNode::getChildren() {
+    return this->lfs.getChildren(path);
 }
 
-uint64_t LfsNode::readData(char *buf, uint64_t pos, uint64_t numBytes)
-{
-    return this->lfs->readData(path, buf, pos, numBytes);
+uint64_t LfsNode::readData(char *buf, uint64_t pos, uint64_t numBytes) {
+    return this->lfs.readData(path, buf, pos, numBytes);
 }
 
-uint64_t LfsNode::writeData(char *buf, uint64_t pos, uint64_t length)
-{
-    return this->lfs->writeData(path, buf, pos, length);
+uint64_t LfsNode::writeData(char *buf, uint64_t pos, uint64_t length) {
+    return this->lfs.writeData(path, buf, pos, length);
 }

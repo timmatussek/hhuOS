@@ -13,20 +13,29 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
+#ifndef __InodeMapEntry_include__
+#define __InodeMapEntry_include__
 
-#include "LfsFlushCallback.h"
-#include "kernel/service/TimeService.h"
-#include "kernel/core/System.h"
+#include "lib/string/String.h"
 
-LfsFlushCallback::LfsFlushCallback(Lfs &lfs) noexcept : lfs(lfs) {}
+/**
+ * Size of inode map entry in bytes
+ */
+#define INODE_MAP_ENTRY_SIZE 20
 
-void LfsFlushCallback::run() {
-    Kernel::TimeService* timeService = Kernel::System::getService<Kernel::TimeService>();
-    uint32_t lastTime = timeService->getSystemTime();
-    while(true) {
-        if(timeService->getSystemTime() - lastTime > FLUSH_INTERVAL) {
-            lfs.flush();
-            lastTime = timeService->getSystemTime();
-        }
-    }
-}
+/**
+ * The inode map contains the position of each active inode.
+ */
+struct InodeMapEntry {
+    /**
+     * The block the inode is stored in.
+     */
+    uint64_t inodePosition;
+
+    /**
+     * The offset inside the block.
+     */
+    uint32_t inodeOffset;
+};
+
+#endif

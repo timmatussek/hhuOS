@@ -19,19 +19,18 @@
 
 #include "filesystem/core/FsDriver.h"
 #include "Lfs.h"
+#include "lib/util/SmartPointer.h"
 
-extern "C"
-{
-#include "lib/libc/string.h"
+extern "C" {
+    #include "lib/libc/string.h"
 }
 
 /**
  * An implementation of FsDriver for a log-structured file system.
  */
-class LfsDriver : public FsDriver
-{
+class LfsDriver : public FsDriver {
 private:
-    Lfs *lfs = nullptr;
+    Util::SmartPointer<Lfs> lfs;
 
     static const constexpr char *TYPE_NAME = "LfsDriver";
 

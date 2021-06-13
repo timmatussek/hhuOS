@@ -13,36 +13,49 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
+#ifndef __Inode_include__
+#define __Inode_include__
 
-#ifndef __LfsFlushCallback_include__
-#define __LfsFlushCallback_include__
-
-#include "Lfs.h"
-#include "kernel/thread/KernelThread.h"
+#include "lib/string/String.h"
 
 /**
- * Timeout between flushes in ms.
+ * Size of inode in bytes
  */
-#define FLUSH_INTERVAL 60000
+#define INODE_SIZE 105
 
-/*
- * A thread to call flush at regular intervals.
+/**
+ * An inode contains metadata and data blocks of a file or directory.
  */
-class LfsFlushCallback : public Kernel::KernelThread {
-private:
-    Lfs &lfs;
-
-public:
+struct Inode {
+    /**
+     * True if the in-memory inode changed and needs to be written to disk.
+     */
+    bool dirty;
 
     /**
-     * Constructor.
+     * Size in bytes of the file.
      */
-    LfsFlushCallback(Lfs &lfs) noexcept;
+    uint64_t size;
 
     /**
-     * Overriding virtual function from KernelThread.
+     * Filetype of file.
      */
-    void run() override;
+    uint8_t fileType;
+
+    /**
+     * Pointers to data blocks.
+     */
+    uint64_t directBlocks[10];
+
+    /**
+     * Pointer to a block containing pointers to data blocks.
+     */
+    uint64_t indirectBlocks;
+
+    /**
+     * Pointer to a block containing pointers to blocks containing pointers to data blocks.
+     */
+    uint64_t doublyIndirectBlocks;
 };
 
 #endif

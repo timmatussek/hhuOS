@@ -13,20 +13,35 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
+#ifndef __Superblock_include__
+#define __Superblock_include__
 
-#include "LfsFlushCallback.h"
-#include "kernel/service/TimeService.h"
-#include "kernel/core/System.h"
+#include "lib/string/String.h"
 
-LfsFlushCallback::LfsFlushCallback(Lfs &lfs) noexcept : lfs(lfs) {}
+/**
+ * The superblock contains information about the filesystem.
+ * It is always at block 0.
+ */
+struct Superblock {
+    /**
+     * Magic number to identify valid lfs.
+     */
+    uint32_t magic;
 
-void LfsFlushCallback::run() {
-    Kernel::TimeService* timeService = Kernel::System::getService<Kernel::TimeService>();
-    uint32_t lastTime = timeService->getSystemTime();
-    while(true) {
-        if(timeService->getSystemTime() - lastTime > FLUSH_INTERVAL) {
-            lfs.flush();
-            lastTime = timeService->getSystemTime();
-        }
-    }
-}
+    /**
+     * The starting block of the current inode map.
+     */
+    uint64_t inodeMapPosition;
+
+    /**
+     * The size in blocks of the current inode map.
+     */
+    uint64_t inodeMapSize;
+
+    /**
+     * The segment number of the next empty segment.
+     */
+    uint64_t currentSegment;
+};
+
+#endif
