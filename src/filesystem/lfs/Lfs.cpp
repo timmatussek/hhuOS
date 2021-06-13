@@ -184,18 +184,18 @@ void Lfs::flush() {
             inode.dirty = false;
             inodeCache.put(n, inode);
         }
-
-        // write partial block
-        // write out segment if full
-        if(nextBlockInSegment * BLOCK_SIZE >= SEGMENT_SIZE) {
-            flushSegmentBuffer();
-        }
-
-        writeBlockToSegmentBuffer(blockBuffer.begin());
-
-        // clear garbage out of buffer
-        memset(blockBuffer.begin(), 0, BLOCK_SIZE);
     }
+
+    // write partial block
+    // write out segment if full
+    if(nextBlockInSegment * BLOCK_SIZE >= SEGMENT_SIZE) {
+        flushSegmentBuffer();
+    }
+
+    writeBlockToSegmentBuffer(blockBuffer.begin());
+
+    // clear garbage out of buffer
+    memset(blockBuffer.begin(), 0, BLOCK_SIZE);
 
     // write inode map
 
